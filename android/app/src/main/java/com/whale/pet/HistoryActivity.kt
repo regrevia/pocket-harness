@@ -52,6 +52,9 @@ import java.util.Locale
 class HistoryActivity : Activity() {
 
     private companion object {
+        /** 对话列表空着时的那句话（加载中会临时换成别的，加载完换回来）。 */
+        const val EMPTY_IDLE = "说句话开始"
+
         /** 扫码页的请求码（首页用的是 42，这里错开）。 */
         const val REQ_SCAN = 43
         /** 从相册挑一张图。 */
@@ -1303,6 +1306,7 @@ class HistoryActivity : Activity() {
         if (live.isNotBlank()) rows.add(ChatRow.Live(live))
         adapter.rows = rows
         adapter.notifyDataSetChanged()
+        empty.text = EMPTY_IDLE
         empty.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
         if (!keepScroll) scrollToBottom()
     }
@@ -1365,10 +1369,14 @@ class HistoryActivity : Activity() {
         Thread({
             val client = PetClient { PetSettings.load(this) }
             var added = 0
+            var seedNewest = false
             try {
                 val before = if (older) PetHistory.oldestSeq(this) else 0L
                 if (older && before <= 0L) {
-                    hostMore = false
+                    // 本地还没有能和宿主对上的序号（缓存里只有手机这边的行）：先补最新一页，
+                    // 有了序号才谈得上往前取。别在这里把「还有更早」关掉——关了以后
+                    // 往上翻就再也不发请求，表现就是「想更早的记录没反应」。
+                    seedNewest = true
                     return@Thread
                 }
                 val res = client.session(sid, HOST_PAGE, if (before > 0L) before else null)
@@ -1408,6 +1416,10 @@ class HistoryActivity : Activity() {
                 hostPaging = false
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
+                    if (seedNewest) {
+                        loadHostPage(older = false)
+                        return@runOnUiThread
+                    }
                     if (!older && adapter.rows.size == 0) historyLimit = HISTORY_PAGE
                     if (older && beforeRows >= historyLimit) historyLimit += HISTORY_PAGE
                     keepScroll = true
@@ -2690,7 +2702,6 @@ class HistoryActivity : Activity() {
                 // 点会话就是进这只：原文、目标真实状态、待输出队列一次到位，
                 // 不再多一个「看这只对话的原文」的中转。
                 pickSession(row.s)
-                startActivity(SessionActivity.intent(this, row.s.id, row.s.title.ifBlank { liveSessionTitle }))
             }
             is PickerRow.NewChat -> {
                 closePicker()
@@ -2723,25 +2734,63 @@ class HistoryActivity : Activity() {
         }, "pet-pick-project").apply { isDaemon = true }.start()
     }
 
-    /** 选会话 = 把 App 的对话钉到那只上。 */
+    /** 选会话 = 把 App 的对话钉到那只上。只此一个会话页，不再另开一层。 */
     private fun pickSession(s: Sess) {
         closePicker()
+        // 顶上两行是一对：这只属于哪个项目，项目名就跟着换过去，不等宿主回来才对
+        // （否则从别的项目点进来，上面还写着上一个项目，下面就摆着这只的对话）。
+        val projTitle = projects.firstOrNull { it.id == pickerProjectId }?.title.orEmpty()
+            .ifBlank { pickerProject }
+            .ifBlank { projects.firstOrNull { it.id == s.proj }?.title.orEmpty() }
+        if (projTitle.isNotBlank() && projTitle != liveProjectTitle) {
+            liveProjectTitle = projTitle
+            PetSettings.savePinnedTitle(this, projTitle)
+        }
         // 切会话前先把旧会话上那一轮收掉：不 cancel 的话 turn 一直非空，新会话里连一个字
         // 都发不出去（提示永远是「上一轮还没结束」），跑着的那轮还会往新会话里写状态。
         turn?.cancel()
         turn = null
         turnToken = ++turnSeq
         ui.removeCallbacks(ticker)
+        ui.removeCallbacks(hostWatch)
+        ui.removeCallbacks(attachPull)
         queuedNote = false
         userStopped = false
+        stopping = false
         liveText = ""
         typing.visibility = View.GONE
+        // 旧会话的「深度求索中 · 用时」是那一只的：换会话就整条收走，
+        // 忙闲和起点都归零，等新会话的真状态回来再按它显示（不然会带着上一只的计时）。
+        hostBusy = false
+        localBusy = false
+        busySince = 0L
+        runBusyOwned = false
+        stopBusyTick()
         runBar.visibility = View.GONE
+        adapter.error = ""
+        adapter.errorAction = null
+        // 分页回到第一屏：新会话从最新一页开始画，往上的更早记录再按页取
+        hostSid = ""
+        hostMore = true
+        hostPaging = false
+        lastHostPageAt = 0L
+        historyLimit = HISTORY_PAGE
+        keepScroll = false
+        nearBottom = true
         // 指针先落库再 reload：列表按新会话重排，旧会话的消息一条都不留在屏上
         PetSettings.saveChatSession(this, s.id)
         liveSessionTitle = s.title
         refreshHeader()
         reload()
+        if (adapter.rows.isEmpty()) {
+            // 本地还没缓存过这只：先给一行占位，别让人对着空白等宿主
+            empty.text = "正在读取会话…"
+            empty.visibility = View.VISIBLE
+        }
+        // 和 onResume 同一条路：会话页一出来就主动把最新一页取回来，不等人退出再进
+        syncSession()
+        loadHostPage(older = false)
+        // 宿主那边把指针也拨过去：之后 /api/state 的忙闲才算到这只头上
         val client = PetClient { PetSettings.load(this) }
         Thread({
             try { client.bind(s.id) } catch (_: Exception) {
@@ -2751,6 +2800,7 @@ class HistoryActivity : Activity() {
                 liveSessionTitle = s.title
                 refreshHeader()
                 reload()
+                loadHostPage(older = false)
             }
         }, "pet-pick-session").apply { isDaemon = true }.start()
     }

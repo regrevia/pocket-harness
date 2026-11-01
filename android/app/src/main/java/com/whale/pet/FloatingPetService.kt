@@ -1874,9 +1874,10 @@ class FloatingPetService : Service() {
     private fun snapTurn(text: String, kind: String) {
         turnActive = false
         firstSentenceAt = 0L
+        turnSid = PetSettings.chatSession(this)
         val line = SnapCommand.hint(kind)
-        PetHistory.append(this, PetHistory.ROLE_ME, text)
-        PetHistory.append(this, PetHistory.ROLE_PET, line)
+        appendHistory(PetHistory.ROLE_ME, text)
+        appendHistory(PetHistory.ROLE_PET, line)
         setMode("talking")
         say(line)
         updateNotification(line)
@@ -1935,13 +1936,22 @@ class FloatingPetService : Service() {
         }
     }
 
+    /** 这一轮属于哪只会话：中途在 App 里换了会话，回答也不能写进新会话里。 */
+    @Volatile private var turnSid = ""
+
+    /** 落对话记录：按本轮开始时的会话归属，不按此刻屏幕上的。 */
+    private fun appendHistory(role: String, text: String) {
+        PetHistory.append(this, role, text, emptyList(), 0L, turnSid)
+    }
+
     /** 普通聊天：原来的 SSE + `/api/dispatch` 一条都不能少。 */
     private fun startChatTurn(text: String) {
+        turnSid = PetSettings.chatSession(this)
         Log.i(PetCommand.TAG, "→ /api/dispatch（仅 chat 路径，指令分支不走这里）")
         turn = PetTurn(client, text, object : PetTurn.Callback {
             override fun onUser(text: String) {
                 if (destroyed) return
-                PetHistory.append(this@FloatingPetService, PetHistory.ROLE_ME, text)
+                appendHistory(PetHistory.ROLE_ME, text)
             }
 
             override fun onStatus(text: String) = Unit
@@ -1949,7 +1959,7 @@ class FloatingPetService : Service() {
             override fun onAssistant(fullText: String, isFinal: Boolean) {
                 if (destroyed || fullText.isBlank()) return
                 if (isFinal) {
-                    PetHistory.append(this@FloatingPetService, PetHistory.ROLE_PET, fullText)
+                    appendHistory(PetHistory.ROLE_PET, fullText)
                     return
                 }
                 // 增量出字：气泡跟着流走，别等整段（宿主已按帧回调）。60ms 节流免得 JS 被灌爆。
@@ -1991,14 +2001,15 @@ class FloatingPetService : Service() {
 
     /** 指令回包只需要念一句（切项目/派发/停/没找到）；不占对话轮，念完自然回待机。 */
     private fun speakCommand(userText: String, cmd: PetCommand) {
+        turnSid = PetSettings.chatSession(this)
         val line = cmd.spoken()
-        PetHistory.append(this, PetHistory.ROLE_ME, userText)
+        appendHistory(PetHistory.ROLE_ME, userText)
         if (line.isBlank()) {
             turnActive = false
             afterReply()
             return
         }
-        PetHistory.append(this, PetHistory.ROLE_PET, line)
+        appendHistory(PetHistory.ROLE_PET, line)
         turnActive = false
         setMode("talking")
         say(line)

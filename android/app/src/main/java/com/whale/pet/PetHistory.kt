@@ -61,7 +61,21 @@ object PetHistory {
         append(context, role, text, emptyList())
 
     /** [atts] = 这条带的图/视频；只发图没写正文时 [text] 是气泡里的替代字。 */
-    fun append(context: Context, role: String, text: String, atts: List<Att>, seq: Long = 0L): Long {
+    fun append(context: Context, role: String, text: String, atts: List<Att>, seq: Long = 0L): Long =
+        append(context, role, text, atts, seq, PetSettings.chatSession(context))
+
+    /**
+     * 显式指定这条属于哪只：后台观察者/补发线程拿的是旧会话的回复时，
+     * 不能按「此刻屏幕上是哪只」落库，否则换会话后旧回答会写进新会话里。
+     */
+    fun append(
+        context: Context,
+        role: String,
+        text: String,
+        atts: List<Att>,
+        seq: Long,
+        sid: String,
+    ): Long {
         val t = text.trim()
         if (t.isEmpty() && atts.isEmpty()) return 0L
         // 单条太长（整段回复）截到 2000 字，避免 SharedPreferences 无限涨
@@ -73,7 +87,7 @@ object PetHistory {
                 .put("r", role)
                 .put("t", body)
                 .put("ts", now)
-                .put("s", PetSettings.chatSession(context))
+                .put("s", sid.ifBlank { PetSettings.chatSession(context) })
             if (seq > 0L) rec.put("q", seq)
             if (atts.isNotEmpty()) {
                 val list = JSONArray()
@@ -105,7 +119,9 @@ object PetHistory {
                 // 记录里带会话 id 的，只显示属于当前这只会话的：换成别的会话后
                 // 上一只的消息不能混在这一只下面（不带 id 的旧记录留着，免得一升级就清空）
                 val sid = o.optString("s")
-                if (sid.isNotBlank() && want.isNotBlank() && sid != want) continue
+                // 严格按会话归属：换了会话，上一只的行一条都不能混进来；
+                // 没带会话号的旧残留（早期版本写的）也不属于这只，一并挡掉。
+                if (want.isNotBlank() && sid != want) continue
                 out.add(Item(o.optString("r", ROLE_PET), text, o.optLong("ts", 0L), sid, atts, o.optLong("q", 0L)))
             }
             return out
@@ -192,7 +208,9 @@ object PetHistory {
             for (i in 0 until arr.length()) {
                 val o = arr.optJSONObject(i) ?: continue
                 val sid = o.optString("s")
-                if (sid.isNotBlank() && want.isNotBlank() && sid != want) continue
+                // 严格按会话归属：换了会话，上一只的行一条都不能混进来；
+                // 没带会话号的旧残留（早期版本写的）也不属于这只，一并挡掉。
+                if (want.isNotBlank() && sid != want) continue
                 val q = o.optLong("q", 0L)
                 if (q > 0L && (min == 0L || q < min)) min = q
             }

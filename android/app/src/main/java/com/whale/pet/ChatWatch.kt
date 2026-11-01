@@ -115,7 +115,7 @@ object ChatWatch {
             // 宿主已经没有这一轮、也没有新回复：收工
             if (running == false && text.isEmpty()) break
         }
-        if (full.isNotBlank()) PetHistory.append(app, PetHistory.ROLE_PET, full.trim())
+        if (full.isNotBlank()) PetHistory.append(app, PetHistory.ROLE_PET, full.trim(), emptyList(), 0L, sid)
         Log.i(TAG, "收工 ${sid.take(18)} 讲=${spoken}")
     }
 

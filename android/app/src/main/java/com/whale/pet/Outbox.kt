@@ -367,7 +367,7 @@ object Outbox {
         }
         val exists = PetHistory.all(ctx).any { it.role == PetHistory.ROLE_PET && it.text == reply }
         if (!exists) {
-            PetHistory.append(ctx, PetHistory.ROLE_PET, reply)
+            PetHistory.append(ctx, PetHistory.ROLE_PET, reply, emptyList(), 0L, sid)
             NetLog.record("outbox", 200, 0, "补发后捞回回答 ${reply.length} 字")
             Log.i("Outbox", "补发后捞回回答 ${reply.length} 字")
         }

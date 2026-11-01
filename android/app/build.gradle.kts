@@ -19,8 +19,8 @@ android {
         applicationId = "com.whale.pet"
         minSdk = 26
         targetSdk = 35
-        versionCode = 212
-        versionName = "0.9.142"
+        versionCode = 213
+        versionName = "0.9.143"
     }
 
     signingConfigs {

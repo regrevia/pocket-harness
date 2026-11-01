@@ -2298,3 +2298,26 @@ PATH 要带上 node 目录，launchd 的默认 PATH 里没有）。管理命令�
 验证：公网 `http://42.193.189.240/pet-voice/api/state`、`/api/pair`、`/api/sessions` 全 200，
 `launchctl list | grep pet-proxy` 退出码 0，模拟 launchd 环境（`env -i PATH=...`）跑
 `--upstream auto` 自动认出 `127.0.0.1:56251`。
+
+## 23.45 一只会话一个页面：切会话不再残留用时、项目和空白的更早记录（0.9.143）
+
+四件事一个根因群，全都是「页面上还挂着上一只会话的状态」：
+
+1. **切换后残留「深度求索中 · 用时」**：`refreshHeader()` 只在 `!busy` 时清 `busySince`，
+   旧会话的起点被 `busyElapsed()` 继续算下去。`pickSession` 现在把这一轮整体收掉
+   （`turn.cancel()`、ticker/hostWatch、`hostBusy/localBusy/busySince/runBusyOwned` 归零、
+   `runBar` 收走），再按新会话的真状态重画。
+2. **新会话的近期上下文不马上出来**：换会话只画了本地缓存，最新一页要等 `onResume` 才拉。
+   `pickSession` 里分页状态归位后立刻 `loadHostPage(older = false)`，后台 `bind` 再补一次。
+3. **项目名和下面的会话对不上**：`pickSession` 只改了 `liveSessionTitle`，没换
+   `liveProjectTitle`，`refreshHeader()` 就落回上一只钉住的项目名。现在先按项目表换标题
+   （并 `savePinnedTitle`），再刷表头。
+4. **往上翻不加载更早的记录**：`loadHostPage(older = true)` 在本地还没有宿主序号时直接把
+   `hostMore` 置 false，此后永远不再请求。改成先补最新一页拿序号（`seedNewest`），
+   `hostMore` 只由服务端的 `hasMore` 决定。
+
+同时删掉 `SessionActivity`（`activity_session.xml` 与清单条目一起），会话列表点一行就进唯一
+的那个会话页：项目、会话、目标、队列一次到位，不再出现「列表点进去又一层会话页」。
+
+验证：真机切会话不再带旧计时，表头项目跟着切，首次进入即出最新一屏并显示「回复中」；
+往上拖到顶触发更早一页。
