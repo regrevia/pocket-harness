@@ -1,13 +1,13 @@
 {
   "ok": true,
-  "versionCode": 213,
-  "versionName": "0.9.143",
-  "size": 30086174,
-  "sha256": "ebd0289e8622e51c11c7088fe1936719ae7c9d9d2f32eae0f15723c67aecfe59",
+  "versionCode": 214,
+  "versionName": "0.9.144",
+  "size": 30090082,
+  "sha256": "309c814ce1e3681b0607d1216702c9f3e8d0b36319c3c50df02365fd39aca8c5",
   "file": "app-release.apk",
-  "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.143/app-release.apk",
-  "notes": "切会话不再带旧计时、表头项目跟着换；进来即出最新一屏；往上翻能取更早记录；会话列表点一行直达唯一会话页",
-  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.143/app-release.apk",
-  "publishedAt": "2026-11-01T06:21:52.906Z",
-  "promotedAt": "2026-11-01T06:21:56.522Z"
+  "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.144/app-release.apk",
+  "notes": "0.9.144：手机上能看见并回答待确认提问",
+  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.144/app-release.apk",
+  "publishedAt": "2026-11-01T12:15:34.412Z",
+  "promotedAt": "2026-11-01T12:15:38.084Z"
 }
