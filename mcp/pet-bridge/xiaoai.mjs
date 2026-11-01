@@ -739,7 +739,7 @@ export function createXiaoaiHandler(options = {}) {
         200,
         {
           ok: true,
-          service: 'dsh-pet-voice/xiaoai',
+          service: 'pocket-harness/xiaoai',
           pet: petName,
           waitMs,
           maxSpeak,

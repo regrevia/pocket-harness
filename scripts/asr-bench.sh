@@ -29,7 +29,7 @@ export HOST_URL
 TOKEN_FILE=${TOKEN_FILE:-$HOME/.dsh/pet-voice/token}
 OUT=${OUT:-/tmp/asr-bench-$(date +%H%M%S).json}
 
-[[ -x $ASR_PY ]] || { echo "找不到 worker python：$ASR_PY（先跑 plugins/dsh-pet-voice/asr/setup.sh）" >&2; exit 2; }
+[[ -x $ASR_PY ]] || { echo "找不到 worker python：$ASR_PY（先跑 plugins/pocket-harness/asr/setup.sh）" >&2; exit 2; }
 [[ -x $BENCH_PY ]] || { echo "找不到测量 python：$BENCH_PY" >&2; exit 2; }
 
 TMPPY=$(mktemp /tmp/asr-bench.XXXXXX)
@@ -43,7 +43,7 @@ VENV_PY = os.environ.get("ASR_PY") or os.environ.get(
 WORKER_URL = os.environ.get("WORKER_URL", "http://127.0.0.1:52399")
 HOST_URL = os.environ["HOST_URL"]  # 外层 pv_base 现探后导出，这里不再写死端口
 TOKEN_FILE = os.environ.get("TOKEN_FILE", os.path.expanduser("~/.dsh/pet-voice/token"))
-INSTALLED = os.path.expanduser("~/.dsh/plugins/dsh-pet-voice/asr/asr-worker.py")
+INSTALLED = os.path.expanduser("~/.dsh/plugins/pocket-harness/asr/asr-worker.py")
 # cold 模式默认起「装好的那份」；换后端/换解释器只影响这一次测量。
 BACKEND = os.environ.get("ASR_BACKEND", "").strip()   # "" = worker 自己的默认（auto）
 WORKER_SRC = os.path.expanduser(os.environ.get("ASR_WORKER_SRC", INSTALLED))

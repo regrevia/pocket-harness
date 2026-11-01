@@ -66,12 +66,12 @@ class UpdateManager(private val ctx: Context, private val client: PetClient) {
                 "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/latest/",
             ),
             Channel(
-                "https://cdn.jsdelivr.net/gh/regrevia/dsh-pet-voice@main/update/latest.json",
-                "https://github.com/regrevia/dsh-pet-voice/releases/latest/download/",
+                "https://cdn.jsdelivr.net/gh/regrevia/pocket-harness@main/update/latest.json",
+                "https://github.com/regrevia/pocket-harness/releases/latest/download/",
             ),
             Channel(
-                "https://raw.githubusercontent.com/regrevia/dsh-pet-voice/main/update/latest.json",
-                "https://github.com/regrevia/dsh-pet-voice/releases/latest/download/",
+                "https://raw.githubusercontent.com/regrevia/pocket-harness/main/update/latest.json",
+                "https://github.com/regrevia/pocket-harness/releases/latest/download/",
             ),
         )
 

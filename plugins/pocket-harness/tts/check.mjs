@@ -6,7 +6,7 @@
  *   3) 顺带校验鉴权（无 cookie 必须 401）与参数校验（未知音色 400）
  *
  * 用法：
- *   node plugins/dsh-pet-voice/tts/check.mjs
+ *   node plugins/pocket-harness/tts/check.mjs
  *   BASE=http://127.0.0.1:58686 PV_TOKEN=<token> node …/check.mjs
  *
  * token 默认从 ~/.dsh/pet-voice/token 读；输出里不会打印完整 token。

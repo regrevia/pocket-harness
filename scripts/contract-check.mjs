@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * dsh-pet-voice 接口契约冒烟校验（只读）。
+ * pocket-harness 接口契约冒烟校验（只读）。
  *
  *   PV_BASE=https://127.0.0.1:8443/pet-voice NODE_TLS_REJECT_UNAUTHORIZED=0 \
  *     node scripts/contract-check.mjs

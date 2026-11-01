@@ -473,7 +473,7 @@ APK 因此从 **1.96 MB 长到 debug 3,674,327 B / release 3,388,437 B**（0.2.0
 ## 13. 形象素材：帧序列是唯一源（pet.js 已退居备用）
 
 - 形象走 §10 的 webm 视频（`android/app/src/main/assets/anim/*.webm`），**不再用代码画的像素小人**；
-  `plugins/dsh-pet-voice/public/pet.js` 只保留渲染桥与旧 canvas 兜底，不再是素材源。
+  `plugins/pocket-harness/public/pet.js` 只保留渲染桥与旧 canvas 兜底，不再是素材源。
 - 改 `boot.js`（渲染桥）后仍必须重新生成单文件页面：
   ```bash
   node scripts/gen-pet-asset.mjs   # 内联 pet.js + boot.js → assets/pet/index.html
@@ -616,12 +616,12 @@ adb shell am broadcast -a com.whale.pet.action.DEBUG_TURN -p com.whale.pet --es 
   其余必须 `https://`，保存时直接提示「地址无效：公网必须 https://」。理由：明文链路上 48 字符 bearer token 与全部对话内容都可被旁观。
 - **令牌不外泄**：只存 `MODE_PRIVATE` 的 `SharedPreferences`，UI 只显示掩码，日志不打；请求走 `Cookie: pkv_<前8位>=<token>`，不拼进 URL 查询串。
 - **静态资源不放秘密**：早期 `public/qr-pairing.png` 编了带令牌的完整配对链接，而 `/pet-voice/assets/*` **不鉴权** —— 已删除（`assets/qr-pairing.png → 404` 实测），页面/白名单/契约文档同步清理。
-  规则：**不要往 `plugins/dsh-pet-voice/public/` 放任何带令牌或隐私文本的文件。**
+  规则：**不要往 `plugins/pocket-harness/public/` 放任何带令牌或隐私文本的文件。**
 - **语音合成不进共享缓存**：`/api/tts` 返回 `cache-control: private, max-age=86400`（URL 里带原文，不能被 CDN / 代理留存）。
 
 ### 16.3 服务端合成缓存（延迟主收益）
 
-`plugins/dsh-pet-voice/index.js` 里一个进程内 LRU：键 `音色|语速|音调|文本`，上限 48 条 / 16 MB，按字节淘汰；
+`plugins/pocket-harness/index.js` 里一个进程内 LRU：键 `音色|语速|音调|文本`，上限 48 条 / 16 MB，按字节淘汰；
 合成边吐边攒，退出码 0 且字节数 > 0 才入缓存；响应带 `x-tts-cache: hit|miss`，命中直接 `content-length` + `res.end(buf)`。
 
 【实测 2026-10-24，宿主 `curl` 取同一句】
@@ -1629,7 +1629,7 @@ App 这边：运行条写「引导中」，这一轮照常计时（不按「排�
 | 手机发 `queue-probe-three`（改前） | 502 ×N 进待发队列 | 「已排队，联网后自动发出」，40 次退避后被静默丢弃 |
 | 手机发 `reject-check`（改后） | 409 一次 | 气泡下**一行**「这个会话不能从手机发」，无重试按钮，落盘凭据已清空（`pet_pending.xml` 为空） |
 
-**单测**（`plugins/dsh-pet-voice/test/dispatch-target.test.mjs`，11 项全过）新增两项：
+**单测**（`plugins/pocket-harness/test/dispatch-target.test.mjs`，11 项全过）新增两项：
 ③c 引导并进电脑正在跑的那轮（`mode:'steer'`、不 cancel、不登记 `liveAbort`/`awaitPetTurn`）；
 ⑧ 外来会话回 409 且去重记号回滚（同一 requestId 重发仍是 409，不被当成「已收到」）。
 
@@ -2132,7 +2132,7 @@ system-reminder、checkpoint 头、fast-mode 提醒。App 之前照单全收，�
 以及「长度 ≥600 且 ≥4 行以 `- **` 开头」的摘要 dump 兜底）。
 过滤点在**渲染**而非入库：`HistoryActivity.kt:1033` / `:1102`、`SessionActivity.kt:342` 三处丢弃，
 磁盘上的原始记录保持不动（将来规则变宽还能重渲染）。插件侧同步把同样的模式加进
-`plugins/dsh-pet-voice/index.js` 的 `INJECTED_USER_PATTERNS`，两条路都挡。
+`plugins/pocket-harness/index.js` 的 `INJECTED_USER_PATTERNS`，两条路都挡。
 
 真机证据（`session-863211a4-…`）：先在会话里落三条测试输入——裸 `</compacted-summary>`、
 中文摘要 dump、以及对照行「过滤器自检：这一条应该显示」。同一次渲染里只有对照片出现，
@@ -2203,7 +2203,7 @@ user 消息正文是 `三图连发自检 0.9.139\n\n![图片](/Users/apple/.dsh/
 ## 23.43 加载与一致性：首屏骨架、分页、目标编辑、状态不丢、单一嗓子、小人开关（0.9.142）
 
 这一节记 0.9.140 → 0.9.142 三版合起来的一次「和桌面端对齐」的收尾，全部指 `com.whale.pet`
-0.9.142 / versionCode 212，插件 `dsh-pet-voice` 0.1.38。
+0.9.142 / versionCode 212，插件 `pocket-harness` 0.1.38。
 
 ### 1. 打开会话先出骨架，最新的先到
 

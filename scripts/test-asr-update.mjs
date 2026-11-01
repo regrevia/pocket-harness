@@ -36,7 +36,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const PLUGIN_ENTRY = join(REPO_ROOT, 'plugins', 'dsh-pet-voice', 'index.js')
+const PLUGIN_ENTRY = join(REPO_ROOT, 'plugins', 'pocket-harness', 'index.js')
 const PUBLISH_SCRIPT = join(REPO_ROOT, 'scripts', 'publish-apk.mjs')
 const ASR_SCRIPT = join(REPO_ROOT, 'scripts', 'asr-worker.py')
 const ASR_PYTHON = join(homedir(), '.dsh', 'pet-voice', 'asr-venv', 'bin', 'python')

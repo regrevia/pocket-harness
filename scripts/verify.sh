@@ -79,7 +79,7 @@ run() {
 }
 
 head_ "1. 语法检查"
-for f in plugins/dsh-pet-voice/index.js mcp/pet-bridge/xiaoai.mjs mcp/pet-bridge/server.mjs mcp/pet-bridge/xiaoai-selftest.mjs mcp/pet-bridge/selftest.mjs scripts/cf-creds.mjs scripts/cf-creds.test.mjs; do
+for f in plugins/pocket-harness/index.js mcp/pet-bridge/xiaoai.mjs mcp/pet-bridge/server.mjs mcp/pet-bridge/xiaoai-selftest.mjs mcp/pet-bridge/selftest.mjs scripts/cf-creds.mjs scripts/cf-creds.test.mjs; do
   run "node --check $f" node --check "$f"
 done
 
@@ -94,7 +94,7 @@ fi
 head_ "2. 插件自测（模拟 HOME，不碰真实配置）"
 # selftest 要求干净 HOME：上次跑剩的面板文件会让它以为在真机上，直接退出 2
 rm -rf /tmp/pvtest && mkdir -p /tmp/pvtest
-run "插件 selftest" env HOME=/tmp/pvtest node plugins/dsh-pet-voice/selftest.mjs
+run "插件 selftest" env HOME=/tmp/pvtest node plugins/pocket-harness/selftest.mjs
 
 head_ "3. MCP 自测"
 run "MCP selftest" node mcp/pet-bridge/selftest.mjs

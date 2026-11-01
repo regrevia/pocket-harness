@@ -719,7 +719,7 @@ function markTtsUnavailable(error) {
   TTS.warned = true
   const hint =
     error?.status === 503
-      ? '在电脑上运行 plugins/dsh-pet-voice/tts/setup.sh 就能用神经语音'
+      ? '在电脑上运行 plugins/pocket-harness/tts/setup.sh 就能用神经语音'
       : '这次先用系统语音'
   log('sys', `神经语音不可用，已回退系统语音（${hint}）`)
 }

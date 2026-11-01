@@ -287,7 +287,7 @@ node mcp/pet-bridge/xiaoai-selftest.mjs
 | --- | --- |
 | [`mcp/pet-bridge/xiaoai.mjs`](../mcp/pet-bridge/xiaoai.mjs) | 纯 `node:http` 的 handler：门禁、签名、意图路由、动作组装、待办补答 |
 | [`mcp/pet-bridge/xiaoai-selftest.mjs`](../mcp/pet-bridge/xiaoai-selftest.mjs) | 94 条断言，本地 stub，含签名三例、三轮强制退出、真回复时效 |
-| [`plugins/dsh-pet-voice/index.js`](../plugins/dsh-pet-voice/index.js) | 挂 `POST /pet-voice/api/xiaoai` 与 `GET .../selftest`，把宿主会话能力收窄成 `pet` 适配器 |
+| [`plugins/pocket-harness/index.js`](../plugins/pocket-harness/index.js) | 挂 `POST /pet-voice/api/xiaoai` 与 `GET .../selftest`，把宿主会话能力收窄成 `pet` 适配器 |
 | `~/.dsh/pet-voice/xiaoai.json` | `urlSecret` / `workspace` / `keyId` / `secret` / `appId`（0600，勿外传） |
 | `~/.dsh/pet-voice/pet-session.json` | 小爱专属会话：`workspaceTitle` / `cwd` / `sessionId`（0600） |
 | `~/.dsh/pet-voice/xiaoai-url.txt` | 控制台要填的完整 URL（含 secret，0600，勿外传） |

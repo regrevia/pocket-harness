@@ -7,7 +7,7 @@
   "file": "app-release.apk",
   "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.143/app-release.apk",
   "notes": "切会话不再带旧计时、表头项目跟着换；进来即出最新一屏；往上翻能取更早记录；会话列表点一行直达唯一会话页",
-  "fallbackUrl": "https://github.com/regrevia/dsh-pet-voice/releases/download/v0.9.143/app-release.apk",
+  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.143/app-release.apk",
   "publishedAt": "2026-11-01T06:21:52.906Z",
   "promotedAt": "2026-11-01T06:21:56.522Z"
 }

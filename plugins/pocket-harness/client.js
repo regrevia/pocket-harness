@@ -10,7 +10,7 @@
  */
 
 window.__ModuleLoader__.load({
-  id: 'dsh-pet-voice',
+  id: 'pocket-harness',
   factory(require) {
     const React = require('react')
     const h = React.createElement
@@ -689,7 +689,7 @@ window.__ModuleLoader__.load({
             ? h(
                 'div',
                 { style: { ...S.row, color: 'var(--dsw-alias-state-warning-primary, #b7791f)', fontSize: 12 } },
-                '这台电脑还没装语音：在仓库里跑 bash plugins/dsh-pet-voice/tts/setup.sh，装完刷新这一页。',
+                '这台电脑还没装语音：在仓库里跑 bash plugins/pocket-harness/tts/setup.sh，装完刷新这一页。',
               )
             : null,
           paramRow(

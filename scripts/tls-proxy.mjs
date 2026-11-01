@@ -17,7 +17,7 @@ import { request } from 'node:http'
 import { readFileSync, existsSync, appendFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { normalizeTarget, isProtectedPath, forwardPath } from '../plugins/dsh-pet-voice/guardPath.mjs'
+import { normalizeTarget, isProtectedPath, forwardPath } from '../plugins/pocket-harness/guardPath.mjs'
 
 const args = process.argv.slice(2)
 const val = (name, def) => {

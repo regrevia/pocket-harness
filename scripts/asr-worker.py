@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""本机 whisper 语音识别常驻 worker：只监听 127.0.0.1，给 dsh-pet-voice 插件当后备。
+"""本机 whisper 语音识别常驻 worker：只监听 127.0.0.1，给 pocket-harness 插件当后备。
 
 为什么要有这个进程：
     手机端每次说话都要把 wav 交给识别。模型加载一次要几百毫秒到几秒，

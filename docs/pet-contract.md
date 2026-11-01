@@ -1,10 +1,10 @@
-# 手机端 ↔ `dsh-pet-voice` 接口契约（v1.10，2026-10-29；v1.10 图片改成宿主 `PromptContentPart` 的 base64 `data` 形状、`/api/session` 回显 `![图片](路径)` 让手机能看图；v1.9 曾误用 `ImageBlock` 引用会被宿主 `prompt rejected`；v1.8 面板「音色」接成默认音色（不再只存不用）、`/api/state` 下发 `pet.wakeName` 与 `settings.voice`、`/api/tts` 的 voice 优先级按实现改正；v1.7 加 `/api/upload`、`/api/file`（视频 + Range）、`/api/diag`、dispatch `attachments`/`requestId`/`queued`/`origin`、错误码总表、面板配置生效时机；v1.6 工具行改成桌面那种「标签 · 详情」一行（协议不变）；v1.5 对话页去掉分割线；v1.4 旁听材料改走隐藏提示词、`/api/session` 加 `peek`；v1.3 加 dispatch 旁听材料；v1.2 加 `/api/render`、朗读剥离、人设/长度/气泡配置）
+# 手机端 ↔ `pocket-harness` 接口契约（v1.10，2026-10-29；v1.10 图片改成宿主 `PromptContentPart` 的 base64 `data` 形状、`/api/session` 回显 `![图片](路径)` 让手机能看图；v1.9 曾误用 `ImageBlock` 引用会被宿主 `prompt rejected`；v1.8 面板「音色」接成默认音色（不再只存不用）、`/api/state` 下发 `pet.wakeName` 与 `settings.voice`、`/api/tts` 的 voice 优先级按实现改正；v1.7 加 `/api/upload`、`/api/file`（视频 + Range）、`/api/diag`、dispatch `attachments`/`requestId`/`queued`/`origin`、错误码总表、面板配置生效时机；v1.6 工具行改成桌面那种「标签 · 详情」一行（协议不变）；v1.5 对话页去掉分割线；v1.4 旁听材料改走隐藏提示词、`/api/session` 加 `peek`；v1.3 加 dispatch 旁听材料；v1.2 加 `/api/render`、朗读剥离、人设/长度/气泡配置）
 
-这份文档是**唯一**的跨端约定。背景：`dsh-pet-voice` 要作为独立插件脱离出来，插件与手机 App
+这份文档是**唯一**的跨端约定。背景：`pocket-harness` 要作为独立插件脱离出来，插件与手机 App
 各自演进——所以只允许按本文档约定的 HTTP 接口互相说话，**App 不得依赖插件内部实现**
 （内部文件、内部函数、宿主 `sessionController` 的返回形状、静态资源路径等）。
 
-所有字段、类型、错误码都**按 `plugins/dsh-pet-voice/index.js` 现有实现逐条核对**写成；
+所有字段、类型、错误码都**按 `plugins/pocket-harness/index.js` 现有实现逐条核对**写成；
 冒烟校验脚本见 [`scripts/contract-check.mjs`](../scripts/contract-check.mjs)。
 若文档与实现冲突，**以实现为准并改文档**。
 
@@ -591,7 +591,7 @@ App 侧的固定流程（照这条线走，别自创）：
 - `400 {"ok":false,"error":"text 过长（N > 600 字）","maxChars":600}`
 - `400 {"ok":false,"error":"未知音色档位：xxx","presets":["whale","genki","gentle","cool","sweet","dongbei"]}`
 - `400 {"ok":false,"error":"未知音色：xxx","voices":["zh-CN-XiaoyiNeural", …]}`
-- `503 {"ok":false,"error":"神经语音还没装好","hint":"在电脑上运行 plugins/dsh-pet-voice/tts/setup.sh…"}`
+- `503 {"ok":false,"error":"神经语音还没装好","hint":"在电脑上运行 plugins/pocket-harness/tts/setup.sh…"}`
 - `502 {"ok":false,"error":"神经语音合成失败","hint":"<stderr 尾部>"}`
 - `401`
 
@@ -622,7 +622,7 @@ App 侧的固定流程（照这条线走，别自创）：
   "voices": [                    // 7 个白名单音色（edge-tts zh-CN）
     { "id": "zh-CN-XiaoyiNeural", "label": "小艺 · 活泼少女（默认）" }, /* … */
   ],
-  "hint": "神经语音还没装：运行 plugins/dsh-pet-voice/tts/setup.sh" // string，仅 ready=false 时出现
+  "hint": "神经语音还没装：运行 plugins/pocket-harness/tts/setup.sh" // string，仅 ready=false 时出现
 }
 ```
 

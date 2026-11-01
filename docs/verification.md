@@ -71,7 +71,7 @@ for i in 0 1 2 3 4; do adb exec-out screencap -p > /tmp/s$i.png; done
 ## 4. 自带测试
 
 ```bash
-node --test plugins/dsh-pet-voice/test/*.test.mjs   # 10/10
+node --test plugins/pocket-harness/test/*.test.mjs   # 10/10
 bash scripts/verify.sh                              # 19/19
 ```
 

@@ -25,7 +25,7 @@ TOKEN_FILE=${TOKEN_FILE:-$HOME/.dsh/pet-voice/token}
 ASR_URL=${ASR_URL:-http://127.0.0.1:52399}
 OUT=${OUT:-/tmp/tts-bench-$(date +%H%M%S).json}
 
-[[ -x $PY ]] || { echo "找不到 python：$PY（先跑 plugins/dsh-pet-voice/tts/setup.sh）" >&2; exit 2; }
+[[ -x $PY ]] || { echo "找不到 python：$PY（先跑 plugins/pocket-harness/tts/setup.sh）" >&2; exit 2; }
 
 TMPPY=$(mktemp /tmp/tts-bench.XXXXXX)
 trap 'rm -f "$TMPPY"' EXIT
@@ -37,7 +37,7 @@ HOST_URL = os.environ["HOST_URL"]  # 外层 pv_base 现探后导出，这里不�
 TOKEN_FILE = os.environ.get("TOKEN_FILE", os.path.expanduser("~/.dsh/pet-voice/token"))
 ASR_URL = os.environ.get("ASR_URL", "http://127.0.0.1:52399")
 TTS_PY = os.environ.get("PY", os.path.expanduser("~/.dsh/pet-voice/tts-venv/bin/python"))
-STREAM_PY = "/Users/apple/Desktop/work/Pet/plugins/dsh-pet-voice/tts/stream.py"
+STREAM_PY = "/Users/apple/Desktop/work/Pet/plugins/pocket-harness/tts/stream.py"
 VOICE = "zh-CN-XiaoyiNeural"
 SENTENCES = [
     "这句是为了量首字节写的。",

@@ -13,7 +13,7 @@
 ## 1 最小可运行骨架（只存档，不安装）
 
 ```
-dsh-pet-voice/
+pocket-harness/
 ├─ package.json
 ├─ cordis.patch.yml
 ├─ src/host/index.ts      # 宿主半侧：路由 + LLM
@@ -26,7 +26,7 @@ dsh-pet-voice/
 
 ```json
 {
-  "name": "dsh-pet-voice",
+  "name": "pocket-harness",
   "version": "0.1.0",
   "type": "module",
   "main": "lib/index.js",
@@ -59,8 +59,8 @@ dsh-pet-voice/
 
 ```yaml
 - insert:
-    - id: dsh-pet-voice
-      name: 'dsh-pet-voice'
+    - id: pocket-harness
+      name: 'pocket-harness'
 ```
 
 两个必踩坑（见 `dsh-pet/cordis.patch.yml` 注释）：`id` 必须全局唯一且等于包名；`id:` 那一行**绝不能带行尾注释**，否则商城预检 `check-plugin-submission.mjs` 抓不到 entry ID，整份提交判 `SUBMISSION_ENTRY_MISSING`。
@@ -123,7 +123,7 @@ async function chat(ctx, text) {
 // src/client/index.ts —— 普通副作用脚本：不能有顶层 import/export
 import { makeFactory } from './entry'
 
-window.__ModuleLoader__.load({ id: 'dsh-pet-voice', factory: makeFactory() })
+window.__ModuleLoader__.load({ id: 'pocket-harness', factory: makeFactory() })
 ```
 
 ```ts

@@ -1,7 +1,7 @@
 {
-  "name": "dsh-pet-voice",
-  "version": "0.1.38",
-  "description": "手机端语音宠物：DSH 的 App 端 + 桌宠玩法，语音唤醒与对话；局域网 / 自建域名 / 服务器中转三种连法，人在外面也能指挥电脑上的 DSH。",
+  "name": "pocket-harness",
+  "version": "0.2.0",
+  "description": "Pocket Harness：DSH 手机端。手机上接着用电脑里的同一份 DSH —— 会话、项目、目标、队列状态一致；语音与桌宠可选。",
   "type": "module",
   "engines": {
     "node": ">=22.15.0",
@@ -46,21 +46,21 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/regrevia/dsh-pet-voice.git",
-    "directory": "plugins/dsh-pet-voice"
+    "url": "git+https://github.com/regrevia/pocket-harness.git",
+    "directory": "plugins/pocket-harness"
   },
-  "homepage": "https://github.com/regrevia/dsh-pet-voice#readme",
+  "homepage": "https://github.com/regrevia/pocket-harness#readme",
   "bugs": {
-    "url": "https://github.com/regrevia/dsh-pet-voice/issues"
+    "url": "https://github.com/regrevia/pocket-harness/issues"
   },
   "license": "MIT",
   "keywords": [
     "dsh",
-    "deepseek-harness",
-    "pet",
+    "dsh-plugin",
+    "mobile",
+    "android",
     "voice",
-    "asr",
-    "tts",
-    "android"
+    "pet",
+    "deepseek-harness"
   ]
 }

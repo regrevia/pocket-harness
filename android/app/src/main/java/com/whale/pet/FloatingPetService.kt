@@ -45,7 +45,7 @@ import kotlin.math.hypot
  * 常驻前台服务：桌面上只有一只鲸鱼娘（透明 WebView），点一下唤醒，长按进对话记录。
  *
  * 形象来自 assets/pet/index.html（由 scripts/gen-pet-asset.mjs 把
- * plugins/dsh-pet-voice/public/pet.js 内联进来，file:// 下不能再走 ES module）。
+ * plugins/pocket-harness/public/pet.js 内联进来，file:// 下不能再走 ES module）。
  * 原生只通过 window.PetBridge 驱动渲染，状态变化才发一次 evaluateJavascript。
  *
  * 说话：系统 SpeechRecognizer（WebView 没有 webkitSpeechRecognition）。

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 像素鲸鱼娘，形状取自 plugins/dsh-pet-voice/public/icon.svg（只读复制，未改原文件） -->
+<!-- 像素鲸鱼娘，形状取自 plugins/pocket-harness/public/icon.svg（只读复制，未改原文件） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="112dp"
     android:height="112dp"

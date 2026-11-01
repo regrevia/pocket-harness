@@ -2,8 +2,8 @@
 # 建一个专属 venv 并装 openai-whisper（本机识别，可选）。
 # 手机上默认用系统语音识别，这条只是给「想在这台电脑上识别」的人用：不装也能用，只是识别走手机。
 #
-#   bash plugins/dsh-pet-voice/asr/setup.sh            # 默认 large-v3-turbo
-#   DSH_PET_ASR_MODEL=small bash plugins/dsh-pet-voice/asr/setup.sh
+#   bash plugins/pocket-harness/asr/setup.sh            # 默认 large-v3-turbo
+#   DSH_PET_ASR_MODEL=small bash plugins/pocket-harness/asr/setup.sh
 #
 # venv 落在 ~/.dsh/pet-voice/asr-venv（不放插件目录，插件目录要随仓库同步）。
 # 注意：whisper 会把 torch 一起拉下来（首次几 GB），CPU 也能跑，慢一点。

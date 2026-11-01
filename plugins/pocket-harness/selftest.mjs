@@ -1,12 +1,12 @@
 /**
- * dsh-pet-voice 的离线自检。
+ * pocket-harness 的离线自检。
  *
  * 不启动 DSH，也不需要真模型：用一个假的 ctx 把插件 apply() 起来，把注册到的路由
  * 挂到一个真实 http server 上，然后逐条打请求。这样能验证鉴权、静态资源、状态、
  * 派发、SSE 推送这些真正容易写错的地方。
  *
  * 跑法（用临时 HOME，绝不碰 ~/.dsh 里的真 token）：
- *   HOME=/tmp/pvtest node plugins/dsh-pet-voice/selftest.mjs
+ *   HOME=/tmp/pvtest node plugins/pocket-harness/selftest.mjs
  */
 
 import { createServer, request as httpRequest } from 'node:http'
@@ -27,7 +27,7 @@ for (const name of PANEL_FILES) {
 if (savedPanelFiles.size && process.env.PV_SELFTEST_ALLOW_REAL !== '1') {
   console.error(
     'selftest 会改写面板配置，这里不是空 HOME。\n' +
-      '跑法：HOME=/tmp/pvtest node plugins/dsh-pet-voice/selftest.mjs\n' +
+      '跑法：HOME=/tmp/pvtest node plugins/pocket-harness/selftest.mjs\n' +
       '确实要在当前 HOME 上跑，就先设 PV_SELFTEST_ALLOW_REAL=1。',
   )
   process.exit(2)

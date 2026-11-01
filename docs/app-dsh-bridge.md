@@ -1,6 +1,6 @@
 # 手机 App 浏览项目 / 会话 / 目标（只读接口）
 
-`plugins/dsh-pet-voice` 暴露的四个只读接口，让手机 App 能像桌面端 DSH 一样翻项目和历史会话。
+`plugins/pocket-harness` 暴露的四个只读接口，让手机 App 能像桌面端 DSH 一样翻项目和历史会话。
 全部挂在 `https://<host>:8443/pet-voice/api/…` 下，和其余接口同一套鉴权。
 
 ## 鉴权

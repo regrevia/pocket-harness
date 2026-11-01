@@ -28,7 +28,7 @@ bash scripts/android-smoke.sh          # 装机后 17 项冒烟（需要 adb 与
 改了界面文案，跑一次文案检查，error 必须清零：
 
 ```bash
-node ~/.dsh/skills/ui-restraint/scripts/ui-copy-lint.mjs plugins/dsh-pet-voice
+node ~/.dsh/skills/ui-restraint/scripts/ui-copy-lint.mjs plugins/pocket-harness
 ```
 
 ## 约定
@@ -36,7 +36,7 @@ node ~/.dsh/skills/ui-restraint/scripts/ui-copy-lint.mjs plugins/dsh-pet-voice
 - **绝不提交密钥**：`local/`、`android/keystore.properties`、`*.jks`、`demo/certs/key.pem` 已在 `.gitignore` 里，别硬塞进来。
 - **不新增个人路径**：测试与文档里出现的目录一律用 `/tmp/…` 或 `~/…`，不要写自己机器的绝对路径。
 - **改接口就改契约**：`docs/pet-contract.md` 是手机端与插件的唯一约定，端点字段变了同步更新它，否则 CI 会炸。
-- **动画资源别手改**：`plugins/dsh-pet-voice/public/pet/index.html` 是生成物，改 `scripts/gen-pet-asset.mjs` 后重新生成。
+- **动画资源别手改**：`plugins/pocket-harness/public/pet/index.html` 是生成物，改 `scripts/gen-pet-asset.mjs` 后重新生成。
 - **提交信息**：一句话说清「改了什么、为什么」，中文英文都行。
 
 ## Pull Request

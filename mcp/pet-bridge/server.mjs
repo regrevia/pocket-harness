@@ -2,7 +2,7 @@
 /**
  * 鲸灵 MCP 服务端 (pet-bridge)
  *
- * 把宿主插件 dsh-pet-voice 挂在 DSH webServer 上的 /pet-voice/api/* 端点，
+ * 把宿主插件 pocket-harness 挂在 DSH webServer 上的 /pet-voice/api/* 端点，
  * 包装成标准 MCP（Model Context Protocol, JSON-RPC 2.0）工具，供任意 MCP 客户端调用。
  *
  * 传输：
@@ -179,7 +179,7 @@ async function resolveEndpoint({ force = false } = {}) {
     )
   }
   throw new PetError(
-    '探测不到「鲸灵」宿主：所有候选端口都没响应（详见 detail）。请确认 DSH 正在运行且已启用 dsh-pet-voice 插件；' +
+    '探测不到「鲸灵」宿主：所有候选端口都没响应（详见 detail）。请确认 DSH 正在运行且已启用 pocket-harness 插件；' +
       '也可以显式设置 PET_BASE=http://127.0.0.1:<端口>（端口见 DSH 窗口地址栏）。',
     { tried },
   )
@@ -418,7 +418,7 @@ function summarizeState(state) {
   const sessions = Array.isArray(state.sessions) ? state.sessions : []
   const current = state.current || null
   const remembered = state.remembered && typeof state.remembered === 'object' ? state.remembered : {}
-  // petSession：宿主钉死给「鲸灵/小爱」的专属会话（见 dsh-pet-voice 的 pet-session.json）。
+  // petSession：宿主钉死给「鲸灵/小爱」的专属会话（见 pocket-harness 的 pet-session.json）。
   // 有它就别用 current —— current 是 GUI 里最近活跃的那只，派过去会打扰用户。
   const petSession = state.petSession && typeof state.petSession === 'object' ? state.petSession : null
   return { projects, presets, sessions, current, remembered, petSession, pet: state.pet || null }
@@ -767,7 +767,7 @@ async function toolStop() {
 }
 
 /**
- * pet_say：宿主 dsh-pet-voice 的 `POST /pet-voice/api/say` 入队，
+ * pet_say：宿主 pocket-harness 的 `POST /pet-voice/api/say` 入队，
  * 由手机页面（在线时）念出来。宿主旧版本没有这条路由 → 404，必须如实失败，
  * 不能假装成功（否则用户以为手机在说话，实际什么都没发生）。
  */
@@ -786,7 +786,7 @@ async function toolSay({ text }) {
     const unauth = /HTTP 40[13]|鉴权|令牌/.test(msg)
     const offline = /ECONNREFUSED|探测不到|不可达|ENOTFOUND|EHOSTUNREACH/.test(msg)
     const why = missing
-      ? "宿主不支持播报（没有 /pet-voice/api/say，dsh-pet-voice 需要升级到新版本）"
+      ? "宿主不支持播报（没有 /pet-voice/api/say，pocket-harness 需要升级到新版本）"
       : unauth
         ? "鉴权没过（token 可能已轮换，确认 ~/.dsh/pet-voice/token 与页面一致）"
         : offline

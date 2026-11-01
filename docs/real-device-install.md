@@ -136,7 +136,7 @@ brew install cloudflared
 - 令牌存的是明文 SharedPreferences（离线 Gradle 缓存里没有 `androidx.security-crypto`，暂时上不了 EncryptedSharedPreferences）⇒ 手机被 root 或拿到 adb 备份才可能读到，普通丢失风险低；建议定期在 GUI 页「轮换令牌」。
 - 没有做 Cloudflare Access 的双因子接入（见上面「进阶加固」）。
 - 没有证书固定（pinning）：走 Cloudflare 的证书链，靠系统信任库。
-- `assets` 路由本来就不鉴权 —— **别往 `plugins/dsh-pet-voice/public/` 放任何带令牌、隐私文本的文件**。
+- `assets` 路由本来就不鉴权 —— **别往 `plugins/pocket-harness/public/` 放任何带令牌、隐私文本的文件**。
 
 ## 6. 还没验证的部分（别当成已通过）
 
@@ -158,7 +158,7 @@ adb logcat -s PetLatency:I PetService:I AndroidRuntime:E > /tmp/jingling.log
   覆盖安装。**同包名 + 同签名**，所以 `pet_prefs`（地址 / token / 唤醒词 / 尺寸）和系统权限都保留，
   不用重新扫码配对。装完悬浮窗会自动回来。
 - 更新通道就是插件本身：`GET /pet-voice/api/update` + `GET /pet-voice/download/<file>.apk`
-  （要 cookie），发布用 `node scripts/publish-apk.mjs`，细节见 `plugins/dsh-pet-voice/README.md`。
+  （要 cookie），发布用 `node scripts/publish-apk.mjs`，细节见 `plugins/pocket-harness/README.md`。
 - 想彻底停：`更多 → 关闭全部服务`（停唤醒 / 录音 / TTS / 播放，取消自启动，移除悬浮窗，退出前台服务）。
   下次从桌面图标打开即可重新开启。
 

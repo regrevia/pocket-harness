@@ -1,5 +1,5 @@
 /**
- * dsh-pet-voice — 把 DSH 变成手机端可语音唤醒的「随身宠物」。
+ * pocket-harness — 把 DSH 变成手机端可语音唤醒的「随身宠物」。
  *
  * 形态：一个只在宿主侧运行的插件，往 harness 的 webServer 上注册三段路由：
  *
@@ -19,7 +19,7 @@
  *   agentPresets        人设（agent preset）列表，用来复用现有角色
  *   agent/assistant-stream  助理文本增量，转成 SSE 推给手机做流式 TTS
  *
- * @module dsh-pet-voice
+ * @module pocket-harness
  */
 
 import { createTokenStore } from './token.mjs'
@@ -65,7 +65,7 @@ import { connectPublic, disconnectPublic, publicState, setPublicConfig, stopPubl
 import { startLan, lanState, stopLan } from './lan.mjs?v=20261027a'
 
 /** 插件名，必须等于 bundle patch 里的插入 id。 */
-export const name = 'dsh-pet-voice'
+export const name = 'pocket-harness'
 
 /**
  * `webServer` 是硬依赖：没有它这个插件没有任何意义。
@@ -171,7 +171,7 @@ const TTS_VOICES = [
 const TTS_DEFAULT_VOICE = 'zh-CN-XiaoyiNeural'
 
 /** 没有推广过任何版本时，面板「装到新手机上」退回这里，让人能自己挑一版。 */
-const GITHUB_RELEASES_LATEST = 'https://github.com/regrevia/dsh-pet-voice/releases/latest'
+const GITHUB_RELEASES_LATEST = 'https://github.com/regrevia/pocket-harness/releases/latest'
 
 /**
  * 形象档位（页面上「音色」下拉用）：每档 = 音色 + 语速 + 音高，一键切「说话的味道」。
@@ -2387,7 +2387,7 @@ export const __browseInternals = {
   isInjectedUserText,
 }
 
-/** 派发落点相关（单测用，见 plugins/dsh-pet-voice/test/dispatch-target.test.mjs）。 */
+/** 派发落点相关（单测用，见 plugins/pocket-harness/test/dispatch-target.test.mjs）。 */
 export const __inboxInternals = { liveInbox, inboxActionRoute }
 
 export const __dispatchInternals = {
@@ -2421,7 +2421,7 @@ export const __rowsInternals = {
   },
 }
 
-/** 图片上传 / 派发附图（单测用，见 plugins/dsh-pet-voice/test/upload.test.mjs）。 */
+/** 图片上传 / 派发附图（单测用，见 plugins/pocket-harness/test/upload.test.mjs）。 */
 /** 读图路由的单测入口（见 test/file.test.mjs）。 */
 export const __fileInternals = {
   imageContentType,
@@ -2478,7 +2478,7 @@ export const __uploadInternals = {
   MAX_ATTACHMENTS: UPLOAD_MAX_ATTACHMENTS,
 }
 
-/** 写响应安全网（单测用，见 plugins/dsh-pet-voice/test/response-safety.test.mjs）。 */
+/** 写响应安全网（单测用，见 plugins/pocket-harness/test/response-safety.test.mjs）。 */
 export const __netInternals = {
   resGone,
   writeHead,
@@ -5032,7 +5032,7 @@ export function apply(ctx, config) {
   let xiaoaiReady = null
 
   /**
-   * 懒加载 xiaoai.mjs：仓库里在 `mcp/pet-bridge/`，装到 `~/.dsh/plugins/dsh-pet-voice/`
+   * 懒加载 xiaoai.mjs：仓库里在 `mcp/pet-bridge/`，装到 `~/.dsh/plugins/pocket-harness/`
    * 后是同一个目录。两个位置都试，谁在就用谁（装错版本时不至于整页打不开）。
    */
   async function loadXiaoaiModule() {
@@ -5465,7 +5465,7 @@ export function apply(ctx, config) {
         ? { error: '本机语音不可用', hint: '这台电脑上要能跑 say 和 ffmpeg（brew install ffmpeg）' }
         : provider === 'http'
           ? { error: '还没填接口地址', hint: '面板「语音来源」选自己的接口后，把地址填上' }
-          : { error: '神经语音还没装好', hint: '在电脑上运行 plugins/dsh-pet-voice/tts/setup.sh（建 ~/.dsh/pet-voice/tts-venv 并装 edge-tts）' }
+          : { error: '神经语音还没装好', hint: '在电脑上运行 plugins/pocket-harness/tts/setup.sh（建 ~/.dsh/pet-voice/tts-venv 并装 edge-tts）' }
       return sendJson(res, 503, { ok: false, ...missing })
     }
 
@@ -5562,7 +5562,7 @@ export function apply(ctx, config) {
       return sendJson(res, 503, {
         ok: false,
         error: `启动神经语音失败：${error?.message ?? error}`,
-        hint: '运行 plugins/dsh-pet-voice/tts/setup.sh',
+        hint: '运行 plugins/pocket-harness/tts/setup.sh',
       })
     }
 
@@ -5591,7 +5591,7 @@ export function apply(ctx, config) {
       sendJson(res, 503, {
         ok: false,
         error: `神经语音启动失败：${error?.message ?? error}`,
-        hint: '运行 plugins/dsh-pet-voice/tts/setup.sh',
+        hint: '运行 plugins/pocket-harness/tts/setup.sh',
       })
     })
     child.stderr.on('data', (chunk) => {
@@ -5624,7 +5624,7 @@ export function apply(ctx, config) {
           ok: false,
           error: missing ? '神经语音没装好' : '神经语音合成失败',
           hint: missing
-            ? '运行 plugins/dsh-pet-voice/tts/setup.sh'
+            ? '运行 plugins/pocket-harness/tts/setup.sh'
             : stderrTail.trim() || '看宿主日志里 [tts] 那一行',
         })
         return
@@ -5681,7 +5681,7 @@ export function apply(ctx, config) {
       return sendJson(res, 503, {
         ok: false,
         error: '本机语音识别还没装好',
-        hint: `可选：bash plugins/dsh-pet-voice/asr/setup.sh 装好本机识别（不装就走手机识别）`,
+        hint: `可选：bash plugins/pocket-harness/asr/setup.sh 装好本机识别（不装就走手机识别）`,
       })
     }
     // 请求侧不等满整个载入时间：15 s 还没好就先让 App 拿到回话，进程继续在后台载。
@@ -6807,7 +6807,7 @@ export function apply(ctx, config) {
           presets: TTS_PRESETS,
           defaultPreset: TTS_DEFAULT_PRESET,
           voices: TTS_VOICES,
-          ...(ready ? {} : { hint: '神经语音还没装：运行 plugins/dsh-pet-voice/tts/setup.sh' }),
+          ...(ready ? {} : { hint: '神经语音还没装：运行 plugins/pocket-harness/tts/setup.sh' }),
         })
       }
 
@@ -6839,7 +6839,7 @@ export function apply(ctx, config) {
           backend: health?.backend ?? null,
           device: health?.device ?? null,
           ...(health?.backend === 'openai-whisper' ? { slow: true } : {}),
-          ...(ready ? {} : { hint: `可选：bash plugins/dsh-pet-voice/asr/setup.sh` }),
+          ...(ready ? {} : { hint: `可选：bash plugins/pocket-harness/asr/setup.sh` }),
         })
       }
 
@@ -7045,7 +7045,7 @@ async function selfcheck(ctx, url, state) {
   steps.push(
     ttsOk
       ? { label: 'tts.edge-tts', ok: true }
-      : { label: 'tts.edge-tts', ok: false, skipped: true, error: '可选：运行 plugins/dsh-pet-voice/tts/setup.sh 启用神经语音' },
+      : { label: 'tts.edge-tts', ok: false, skipped: true, error: '可选：运行 plugins/pocket-harness/tts/setup.sh 启用神经语音' },
   )
 
   // 本机识别是可选的（没装 whisper 也能用云端兜底），所以没装只标 skipped，不算失败。
@@ -7057,7 +7057,7 @@ async function selfcheck(ctx, url, state) {
           label: 'asr.whisper',
           ok: false,
           skipped: true,
-          error: `可选：bash plugins/dsh-pet-voice/asr/setup.sh 装好后启用本机识别`,
+          error: `可选：bash plugins/pocket-harness/asr/setup.sh 装好后启用本机识别`,
         },
   )
   const updateMeta = readLatestUpdate()

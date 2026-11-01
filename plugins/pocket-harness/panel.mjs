@@ -1,5 +1,5 @@
 /**
- * dsh-pet-voice 的宿主面板：配对信息、设备列表、二维码。
+ * pocket-harness 的宿主面板：配对信息、设备列表、二维码。
  *
  * 面板只在 DSH Web GUI 里用（已登录），所以二维码可以带令牌；
  * 手机页面自己有 cookie，二维码只负责「第一次怎么进去」。
@@ -11,7 +11,7 @@
  *   devices.json 扫过码/来过请求的设备
  *   panel.json   面板上的用户设置
  *
- * @module dsh-pet-voice/panel
+ * @module pocket-harness/panel
  */
 
 import { createHash } from 'node:crypto'

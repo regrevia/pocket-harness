@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * dsh-pet-voice 端到端验收脚本（不需要浏览器，不需要 App 里的任何东西）。
+ * pocket-harness 端到端验收脚本（不需要浏览器，不需要 App 里的任何东西）。
  *
  * 它模拟手机端做的四件事，全部走真实 HTTP：
  *   1. GET  /pet-voice/api/state            —— 拿到项目/人设列表（不要回显 token）
@@ -11,10 +11,10 @@
  * 验收标准：至少收到一帧 `delta` 或 `final`，且 firstDeltaMs 有值。
  *
  * 用法（默认打本机 58686，token 从 ~/.dsh/pet-voice/token 读，不打印）：
- *   node plugins/dsh-pet-voice/e2e.mjs
- *   BASE=https://xxx.trycloudflare.com node plugins/dsh-pet-voice/e2e.mjs
- *   BASE=http://127.0.0.1:58686 PV_TOKEN=<48位> node plugins/dsh-pet-voice/e2e.mjs
- *   node plugins/dsh-pet-voice/e2e.mjs --transport poll   # 长轮询通道也验一遍
+ *   node plugins/pocket-harness/e2e.mjs
+ *   BASE=https://xxx.trycloudflare.com node plugins/pocket-harness/e2e.mjs
+ *   BASE=http://127.0.0.1:58686 PV_TOKEN=<48位> node plugins/pocket-harness/e2e.mjs
+ *   node plugins/pocket-harness/e2e.mjs --transport poll   # 长轮询通道也验一遍
  *
  * 退出码：0 通过 / 1 失败。
  */

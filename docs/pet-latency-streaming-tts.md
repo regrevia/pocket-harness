@@ -55,7 +55,7 @@ final   seq 26
 - 请求到达时把整句并发拆成 4 小句现合成：**3748 ms**（中位）vs 整句一次 **2248 ms** → 慢 1.7 倍。**不要在请求路径上发散并发**，会抢带宽。
 - 小句**全命中缓存**时拼接：**0.01–0.09 ms**（实测 `Buffer.concat`，4 小句 23KB）。这条是纯赚。
 
-## 二、这次改了什么（只在 `plugins/dsh-pet-voice/`）
+## 二、这次改了什么（只在 `plugins/pocket-harness/`）
 
 ### `index.js`
 1. `?stream=1` → 给 `stream.py` 传 `PET_TTS_RAW=1`（`x-tts-cache` 之外的唯一行为开关）。
@@ -140,8 +140,8 @@ mp.prepareAsync()
 ## 四、生效步骤（需要 lead 做，我这边写不进 `~/.dsh`）
 
 ```bash
-cp plugins/dsh-pet-voice/index.js      ~/.dsh/plugins/dsh-pet-voice/index.js
-cp plugins/dsh-pet-voice/tts/stream.py ~/.dsh/plugins/dsh-pet-voice/tts/stream.py
+cp plugins/pocket-harness/index.js      ~/.dsh/plugins/pocket-harness/index.js
+cp plugins/pocket-harness/tts/stream.py ~/.dsh/plugins/pocket-harness/tts/stream.py
 curl -s -X POST http://127.0.0.1:60930/dsh-unlag/reload    # 不重启宿主（PID 66999）
 ```
 

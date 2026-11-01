@@ -16,13 +16,13 @@ mcp/pet-bridge/
 
 ## 1. 架构：为什么是「当宿主插件的 HTTP 客户端」
 
-本机已有宿主插件 **`dsh-pet-voice`**，它挂在 DSH 的 webServer 上提供
+本机已有宿主插件 **`pocket-harness`**，它挂在 DSH 的 webServer 上提供
 `/pet-voice/` 页面和一组 JSON/SSE 接口。所以本服务端**不碰 DSH 内部 RPC**，
 只充当它的 HTTP 客户端：
 
 ```
 MCP 客户端 ──stdio/HTTP──▶ pet-bridge ──HTTP+cookie──▶ 127.0.0.1:<port>/pet-voice/api/*
-                                                          (dsh-pet-voice 宿主插件)
+                                                          (pocket-harness 宿主插件)
 ```
 
 **选择理由**：这是任务书里方案 (b) 的变体——宿主自己已经把能力暴露成 localhost HTTP 端点，
@@ -128,7 +128,7 @@ pet_status → pet_switch_project{name:"Pet"} → pet_ask{text:"修一下构建"
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| `探测不到「鲸灵」宿主：所有候选端口都没响应` | DSH 没开 / 插件没启用 | 打开 DSH；确认 `dsh-pet-voice` 插件启用；或显式设 `PET_BASE` |
+| `探测不到「鲸灵」宿主：所有候选端口都没响应` | DSH 没开 / 插件没启用 | 打开 DSH；确认 `pocket-harness` 插件启用；或显式设 `PET_BASE` |
 | detail 里某个端口 `鉴权失败` | token 轮换过 | 重启 DSH 让 `~/.dsh/pet-voice/token` 刷新，或重设 `PET_TOKEN` |
 | detail 里 `该端口没有 /pet-voice/api/state` | 那个端口是别的服务 | 正常，忽略；看下一个候选 |
 | `找不到访问令牌` | 文件不存在 | 设 `PET_TOKEN`，或确认 `~/.dsh/pet-voice/token` 可读（0600） |

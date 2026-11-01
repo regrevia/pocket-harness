@@ -41,7 +41,7 @@ async def _run_direct(voice: str, text: str, rate: str, pitch: str) -> int:
     try:
         import edge_tts
     except ImportError:
-        return _fail(3, "edge-tts 未安装：请运行 plugins/dsh-pet-voice/tts/setup.sh")
+        return _fail(3, "edge-tts 未安装：请运行 plugins/pocket-harness/tts/setup.sh")
 
     started = time.monotonic()
     first_at = None

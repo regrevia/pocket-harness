@@ -249,7 +249,7 @@ async function hostReachable() {
     }
   }
   if (hits.length) return { ok: true, base: hits[0], misses }
-  return { ok: false, why: `所有候选端口都没通（${misses.join(', ')}）；DSH 未运行或 dsh-pet-voice 未启用`, misses }
+  return { ok: false, why: `所有候选端口都没通（${misses.join(', ')}）；DSH 未运行或 pocket-harness 未启用`, misses }
 }
 
 /* ---------------- 主流程 ---------------- */

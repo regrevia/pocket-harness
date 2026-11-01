@@ -2,7 +2,7 @@
 # 建一个专属 venv 并装 edge-tts（微软 Edge 神经 TTS，免 key 免账号）。
 # 幂等：已经能用就直接退出；重复跑不会重装。
 #
-#   bash plugins/dsh-pet-voice/tts/setup.sh
+#   bash plugins/pocket-harness/tts/setup.sh
 #
 # venv 落在 ~/.dsh/pet-voice/tts-venv（不放插件目录，插件目录可能要随仓库同步）。
 set -euo pipefail
@@ -51,4 +51,4 @@ PY
 )"
 say "✓ 神经语音已装好：edge-tts $VER"
 say "  python: $VENV/bin/python"
-say "  验证：node plugins/dsh-pet-voice/tts/check.mjs"
+say "  验证：node plugins/pocket-harness/tts/check.mjs"

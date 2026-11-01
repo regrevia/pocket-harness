@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url'
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const UPDATE_DIR = resolve(process.env.DSH_PET_UPDATE_DIR || join(homedir(), '.dsh', 'pet-voice', 'update'))
 /** 公开更新源：和 App 里的 PUBLIC_META_URL 必须一致，换仓库两边一起改。 */
-const GITHUB_REPO = process.env.DSH_PET_GITHUB_REPO || 'regrevia/dsh-pet-voice'
+const GITHUB_REPO = process.env.DSH_PET_GITHUB_REPO || 'regrevia/pocket-harness'
 const GITHUB_BASE = `https://github.com/${GITHUB_REPO}/releases`
 /** 国内镜像：cnb.cool 同名仓库，Release 附件与 GitHub 一一对应；App 先查这里，连不上才回 GitHub。 */
 const CNB_REPO = process.env.DSH_PET_CNB_REPO || '2022090087/dsh-pet-voice'

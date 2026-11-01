@@ -64,7 +64,7 @@ Pet/
 ├── scripts/verify.sh          一条命令验收：语法 + 三套自测 + 线上探针
 ├── scripts/verify-commands.sh 手机侧语音指令验收（切项目/派发/停/切不到/闲聊，自带还原）
 ├── scripts/cf-tunnel-token.mjs 隧道 token 自动解析+校验+落盘（600，不回显原文）
-├── plugins/dsh-pet-voice/     DSH 插件：手机页面 /pet-voice/ + 语音闭环 + 小爱接入点
+├── plugins/pocket-harness/     DSH 插件：手机页面 /pet-voice/ + 语音闭环 + 小爱接入点
 │   ├── index.js               /api/state /dispatch /stream /poll /cancel /new /say /tts /xiaoai
 │   ├── public/                像素鲸鱼娘、唤醒词、按住说话、播报
 │   ├── selftest.mjs           离线自测（模拟 HOME，不碰真实配置）

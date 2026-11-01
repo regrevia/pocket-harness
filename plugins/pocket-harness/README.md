@@ -1,32 +1,34 @@
-# dsh-pet-voice · 鲸灵随身宠物
+# Pocket Harness · DSH 手机端
 
-把 DeepSeek Harness 变成一只**能用嘴使唤**的宠物：手机扫码配对后，悬浮窗里住着一只像素鲸鱼娘；喊一声「鲸灵」，活就派给电脑上的 DSH，回复边生成边念出来，动作同步跟上。
+把电脑上的 DeepSeek Harness 接到手机上：同一条会话、同一份历史、同一批项目，手机点开接着干。
+桌宠是可选的一层——设置里打开，才会有一只像素鲸鱼娘浮在会话页，喊一声就把活派给电脑上的 DSH，回复边生成边念出来。
 
-- **形态**：宿主侧 Cordis 插件，自己在 `webServer` 上挂 `/pet-voice/`（带 token 的页面 + JSON / SSE / 长轮询接口），不改官方页面、不动 profile 的 `package.json`。
-- **App 端**：30 MB Android 自签名包（`android/`），悬浮窗 + 常听麦克风 + 语音唤醒；桌宠玩法与语音对话都在 App 里。
-- **三种连法**：局域网 / 自建域名 / 服务器中转，全部用你自己的地址，代码里没有硬编码域名或 IP。
+- **主形态**：手机端 DSH。会话列表、项目、目标、队列、回复中/用时、待确认提问，两端看到的是同一件事。
+- **宿主侧**：Cordis 插件，自己在 `webServer` 上挂 `/pet-voice/`（带 token 的页面 + JSON / SSE / 长轮询接口），不改官方页面、不动 profile 的 `package.json`。
+- **App 端**：30 MB Android 自签名包（`android/`），会话页 + 可选悬浮桌宠 + 常听麦克风 + 语音唤醒。
+- **连法**：局域网 / 自建域名 / 服务器中转，全部用你自己的地址，代码里没有硬编码域名或 IP。
 - **零账号**：会话、记忆、配置都在你这台电脑上；项目不运营服务器。
 
-![鲸灵](https://raw.githubusercontent.com/regrevia/dsh-pet-voice/main/assets/pet-hero-white.png)
+![鲸灵](https://raw.githubusercontent.com/regrevia/pocket-harness/main/assets/pet-hero-white.png)
 
 ## 安装
 
 ```bash
 # 1. 放进本地插件目录
-rsync -a --delete plugins/dsh-pet-voice/ ~/.dsh/plugins/dsh-pet-voice/
+rsync -a --delete plugins/pocket-harness/ ~/.dsh/plugins/pocket-harness/
 
 # 2. 装进 desktop profile（也可以让 agent 调 plugin_manager）
-#    plugin_manager action=install_bundle target=~/.dsh/plugins/dsh-pet-voice
+#    plugin_manager action=install_bundle target=~/.dsh/plugins/pocket-harness
 ```
 
 首次安装要让桌面端重读 `cordis.patch.yml`（重启 App 一次）。之后改代码不用重启，把插件关一下再开即可：
 
 ```
-plugin_manager action=set_plugin target=include:dsh-pet-voice enabled=false
-plugin_manager action=set_plugin target=include:dsh-pet-voice enabled=true
+plugin_manager action=set_plugin target=include:pocket-harness enabled=false
+plugin_manager action=set_plugin target=include:pocket-harness enabled=true
 ```
 
-> `target` 必须写 `include:dsh-pet-voice`，只写包名会报 `unknown-plugin`。
+> `target` 必须写 `include:pocket-harness`，只写包名会报 `unknown-plugin`。
 
 装好后页面在 `ctx.webServer.getOrigin()` 下，本机是 `http://127.0.0.1:58686/pet-voice/`（端口按宿主实际值）。
 
@@ -36,8 +38,8 @@ plugin_manager action=set_plugin target=include:dsh-pet-voice enabled=true
 
 | 能力 | 从哪来 | 装法 | 不装 |
 | --- | --- | --- | --- |
-| 神经语音 | 微软 edge-tts，免 key | `bash plugins/dsh-pet-voice/tts/setup.sh` | 不出声，仍可打字对话；也可换本机或自己的接口 |
-| 本机识别 | openai-whisper 常驻，只听回环 | `bash plugins/dsh-pet-voice/asr/setup.sh`（torch 首次几 GB） | 默认走手机自己的语音识别 |
+| 神经语音 | 微软 edge-tts，免 key | `bash plugins/pocket-harness/tts/setup.sh` | 不出声，仍可打字对话；也可换本机或自己的接口 |
+| 本机识别 | openai-whisper 常驻，只听回环 | `bash plugins/pocket-harness/asr/setup.sh`（torch 首次几 GB） | 默认走手机自己的语音识别 |
 
 两个脚本幂等，重复跑只检查不重装。
 
@@ -104,10 +106,10 @@ cd android && ./gradlew :app:assembleRelease
 ## 卸载
 
 ```
-plugin_manager action=set_plugin target=include:dsh-pet-voice enabled=false
+plugin_manager action=set_plugin target=include:pocket-harness enabled=false
 ```
 
-删 `~/.dsh/plugins/dsh-pet-voice/` 与 `~/.dsh/pet-voice/` 即可，仓库外无残留。
+删 `~/.dsh/plugins/pocket-harness/` 与 `~/.dsh/pet-voice/` 即可，仓库外无残留。
 
 ## 许可
 

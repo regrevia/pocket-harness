@@ -10,7 +10,7 @@
 
 | 东西 | 位置 | 状态 |
 |---|---|---|
-| 手机端页面（鲸灵 PWA） | DSH 宿主插件 `dsh-pet-voice`，挂在 `http://127.0.0.1:58686/pet-voice/` | 【实测】401 门禁、token 换 cookie、静态资源全 200 |
+| 手机端页面（鲸灵 PWA） | DSH 宿主插件 `pocket-harness`，挂在 `http://127.0.0.1:58686/pet-voice/` | 【实测】401 门禁、token 换 cookie、静态资源全 200 |
 | 语音宠物本体 | 同一页面的像素鲸鱼娘 + 按住说话 + 唤醒词 + 朗读 | 【实测】页面渲染、状态行、开关正常；语音识别质量【未实测】 |
 | 派发到电脑上的 DSH 会话 | `POST /pet-voice/api/dispatch` | 【实测】真跑通：`turn/start → assistant/message("鲸灵在线")`，模型首字 **758 ms** |
 | 串流回手机 | `GET /pet-voice/api/stream`（SSE，失败自动降级长轮询） | 【实测】Node 侧 6 帧（hello/start/delta/final/end）；浏览器侧降级原因已交回修 |
@@ -63,7 +63,7 @@ echo "https://<你的隧道域名>/pet-voice/?k=$(cat ~/.dsh/pet-voice/token)"
 之前「僵硬」的真因：走的是手机自带 `speechSynthesis`（iOS 上就是 Tingting 那类系统音），必然机械。
 现在默认走**宿主侧合成的微软 Edge 神经语音**（`edge-tts`，免 key 免账号），页面收到文本增量后**按句切分、边合边播**；合成失败或没装 venv 才回退系统语音（并提示一次）。
 
-- 装一次：`bash plugins/dsh-pet-voice/tts/setup.sh` → 在 `~/.dsh/pet-voice/tts-venv` 建 venv 装 `edge-tts`【实测：已装好，7.3.1】
+- 装一次：`bash plugins/pocket-harness/tts/setup.sh` → 在 `~/.dsh/pet-voice/tts-venv` 建 venv 装 `edge-tts`【实测：已装好，7.3.1】
 - 换音色：页面 ⚙ → **音色（神经语音）**，7 个中文音色：小艺·活泼少女（默认）、晓晓·温暖自然、晓辰·亲和、晓萱·沉稳、晓墨·故事感、晓北·东北话、晓妮·陕西话【实测：下拉已渲染】
 - 延迟（同一句 24 字，实测）：本机首字节 **0.93–1.10 s**、整段 1.2–1.7 s；走隧道首字节 **1.8–3.0 s**、整段 2.0–3.3 s → 公网下第一句约晚 2 s 出声，之后按句连播。
 - 要豆包本体音色：得用火山引擎（Seed-TTS）的 AppID + AccessToken，或 MiniMax / 阿里百炼 CosyVoice；`/api/tts` 是单一可替换端点，换厂商只改 `tts/stream.py` + 音色白名单。

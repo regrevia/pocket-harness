@@ -55,7 +55,7 @@
 > **上线实测（2026-10-26）：`base` 不够用。** 同一批 3 句 5–6 s 录音（`say -v Ting-Ting` 合成，16 kHz 单声道），
 > PyTorch 版 `base` + `beam_size=1` 0.65–1.3 s，但「语音识别服务」→「余音时别服务」、「语音转文字」→「鱼银转文字」，
 > 还偶尔整句输出繁体；`large-v3-turbo` + `beam_size=5` 1.6–2.9 s、全对且全简体（加载 5.0 s、预热 2.6 s，冷启动合计 11 s）。
-> 已把常驻 worker 默认值改成 `large-v3-turbo`/`beam_size=5`（`plugins/dsh-pet-voice/asr/asr-worker.py`），
+> 已把常驻 worker 默认值改成 `large-v3-turbo`/`beam_size=5`（`plugins/pocket-harness/asr/asr-worker.py`），
 > 一句话多花半秒换认对，比省时间值。
 ⚠️ **中文专名必须加热词**：实测 base 把「小宠」听成「小丑」——whisper 用 `initial_prompt` 注入人名词表，云厂商用热词表。
 
