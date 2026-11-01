@@ -2229,6 +2229,100 @@ function inboxOfSession(sessionId) {
 }
 
 /**
+ * 等主人回答的提问（桌面端「待确认提问」那一块）。
+ * 宿主把还没答的提问放进投影缓存的 `userQuestions` 行：`open` 还卡在前台等，
+ * `continued` 是工具已经把球踢回给模型、回答会作为一条消息插进下一轮。
+ */
+function asksOfSession(sessionId) {
+  const id = String(sessionId ?? '').trim()
+  if (!id) return []
+  const file = projectCachePath(id)
+  if (!file) return []
+  let rows = {}
+  try {
+    rows = JSON.parse(readFileSync(file, 'utf8'))?.record?.rows ?? {}
+  } catch {
+    return []
+  }
+  const active = rows.userQuestions?.val?.questions?.active
+  if (!Array.isArray(active)) return []
+  return active.flatMap((call) => {
+    const questions = (Array.isArray(call?.questions) ? call.questions : [])
+      .filter((item) => item?.id)
+      .map((item) => ({
+        id: String(item.id),
+        question: String(item.question ?? ''),
+        header: String(item.header ?? ''),
+        detail: String(item.detail ?? ''),
+        multiSelect: item.multiSelect === true,
+        options: (Array.isArray(item.options) ? item.options : [])
+          .filter((option) => option?.label)
+          .map((option) => ({ label: String(option.label), description: String(option.description ?? '') })),
+        approve: String(item.intent?.approve ?? ''),
+      }))
+    if (!questions.length) return []
+    return [{
+      callId: String(call?.callId ?? ''),
+      state: call?.state === 'continued' ? 'continued' : 'open',
+      questions,
+    }]
+  })
+}
+
+/**
+ * 回答一条还没答的提问。宿主只开了 `continued` 这条路：回答作为一条消息插进 agent 的下一轮。
+ * 还卡在前台等的那条只能由正挂着的那次请求收，这里没有第二扇门，所以直说让主人回电脑上答。
+ */
+async function answerRoute(ctx, body) {
+  const sessionId = String(body?.sessionId ?? '').trim()
+  const callId = String(body?.callId ?? '').trim()
+  const answers = (Array.isArray(body?.answers) ? body.answers : [])
+    .filter((item) => item && item.id)
+    .map((item) => {
+      const out = {
+        id: String(item.id),
+        selected: (Array.isArray(item.selected) ? item.selected : []).map((label) => String(label)),
+      }
+      const custom = String(item.custom ?? '').trim()
+      if (custom) out.custom = custom
+      return out
+    })
+  if (!sessionId || !callId || !answers.length) return { status: 400, body: { ok: false, error: '参数不对' } }
+  const pending = asksOfSession(sessionId).find((item) => item.callId === callId)
+  if (!pending) return { status: 409, body: { ok: false, error: '这条提问已经不在了' } }
+  if (pending.state !== 'continued') {
+    return { status: 409, body: { ok: false, error: '这个话题还卡在电脑上，回电脑上回答就行' } }
+  }
+  const controller = ctx.get?.('sessionController')
+  if (typeof controller?.resolveAgent !== 'function') {
+    return { status: 503, body: { ok: false, error: '宿主没给出会话接口' } }
+  }
+  let agent = null
+  try {
+    agent = (await controller.resolveAgent(sessionId))?.agent ?? null
+  } catch {
+    agent = null
+  }
+  if (!agent) return { status: 409, body: { ok: false, error: '会话没打开' } }
+  const service = agent.ctx?.get?.('userQuestions') ?? ctx.get?.('userQuestions')
+  if (typeof service?.answer !== 'function') return { status: 503, body: { ok: false, error: '宿主没有提问接口' } }
+  try {
+    const sent = service.answer(agent, callId, { answers })
+    netLog('answer', { sessionId, callId, sent: sent === true })
+    if (sent !== true) return { status: 409, body: { ok: false, error: '这条提问已经不在了' } }
+    return { status: 200, body: { ok: true, callId } }
+  } catch (error) {
+    const code = String(error?.code ?? '')
+    const text = code === 'REPLY_QUEUED'
+      ? '这条回答已经在路上了'
+      : code === 'BAD_ANSWER'
+        ? '每个问题都得选一个'
+        : String(error?.message ?? error)
+    return { status: 409, body: { ok: false, error: text } }
+  }
+}
+
+/**
  * 活在 agent 身上的队列：投影只是镜像，真正能操作的是宿主 `agent.inbox`。
  * `next-step` 是插进下一步的话，`next-turn` 是等一整轮的话——和桌面端「待输入」是同一份。
  */
@@ -2389,6 +2483,8 @@ export const __browseInternals = {
 
 /** 派发落点相关（单测用，见 plugins/pocket-harness/test/dispatch-target.test.mjs）。 */
 export const __inboxInternals = { liveInbox, inboxActionRoute }
+
+export const __asksInternals = { asksOfSession, answerRoute }
 
 export const __dispatchInternals = {
   publicTurns,
@@ -6274,6 +6370,7 @@ export function apply(ctx, config) {
             ...payload,
             goal: goalsOfSession(sid).goals[0] ?? null,
             inbox: inboxOfSession(sid),
+            asks: asksOfSession(sid),
           })
         } catch (error) {
           LOG('会话转录读取失败：', error?.message ?? error)
@@ -6295,6 +6392,28 @@ export function apply(ctx, config) {
           return sendJson(res, 400, { ok: false, error: 'bad json' })
         }
         const out = await inboxActionRoute(ctx, body)
+        return sendJson(res, out.status, out.body)
+      }
+
+      if (route === 'asks' && method === 'GET') {
+        // 还没答的提问：手机只读这份投影，答的时候走下面的 answer。
+        try {
+          const sid = url.searchParams.get('sessionId') ?? ''
+          return sendJson(res, 200, { ok: true, asks: asksOfSession(sid) })
+        } catch (error) {
+          LOG('提问读取失败：', error?.message ?? error)
+          return sendJson(res, 200, { ok: true, asks: [] })
+        }
+      }
+
+      if (route === 'answer' && method === 'POST') {
+        let body = {}
+        try {
+          body = JSON.parse(String((await readBody(req, 16 * 1024)) ?? '{}') || '{}')
+        } catch {
+          return sendJson(res, 400, { ok: false, error: 'bad json' })
+        }
+        const out = await answerRoute(ctx, body)
         return sendJson(res, out.status, out.body)
       }
 

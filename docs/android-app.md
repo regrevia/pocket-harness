@@ -2321,3 +2321,22 @@ PATH 要带上 node 目录，launchd 的默认 PATH 里没有）。管理命令�
 
 验证：真机切会话不再带旧计时，表头项目跟着切，首次进入即出最新一屏并显示「回复中」；
 往上拖到顶触发更早一页。
+
+## 23.46 待确认提问：手机上看得见、答得了（插件 0.2.1）
+
+桌面端有一种状态原来在手机上变成「回复中」卡住：模型调了问人工具，正等主人选一项。
+现在它有名字了，宿主侧两个路由：
+
+- `GET /api/asks?sessionId=` → `{ ok, asks:[{ callId, state:"open"|"continued", questions:[{ id, question, header, detail, multiSelect, options:[{label,description}], approve }] }] }`
+- `POST /api/answer`，body `{ sessionId, callId, answers:[{ id, selected:["label"], custom? }] }`
+
+**只认 `continued`。** 宿主 `UserQuestionService` 对已经踢回给模型的提问开了 `answer()`，
+回答会作为一条消息插进下一轮；还卡在前台 `open` 的那条只由正挂着的那次请求收，
+插件没有第二扇门——所以 `open` 一律回 409 让主人回电脑上答，不假装答了。
+
+投影来源是宿主 `userQuestions` 行的 `questions.active`，与桌面端面板是同一份，不另存状态。
+`approve` 只用于把计划审批的「通过」项排到前面，判定仍按选项文本走。
+
+验证（宿主侧，无设备）：灌一份 fixture 投影缓存，`asksOfSession` 归一化出题干/选项/意图；
+`answerRoute` 对 `continued` 返回 200 并调用到 `service.answer(agent, callId, {answers})`，
+对 `open` 返回 409「这个话题还卡在电脑上」，对已消失的 callId 返回 409「这条提问已经不在了」。

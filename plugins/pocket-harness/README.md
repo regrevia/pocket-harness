@@ -55,17 +55,23 @@ https://<你的地址>/pet-voice/?k=<token>
 
 浏览器只允许 https 或 localhost 用麦克风，所以手机必须走 https：局域网档需要自签证书（App 内置示例 CA 公钥，无私钥），外网档用隧道或自建域名。细节见仓库根目录的 [README](../../README.md) 与 [docs/self-host.md](../../docs/self-host.md)。
 
-## 页面能做什么
+## 手机上能做什么
+
+App 是 DSH 的手机端，不是另一个入口：桌面端的会话、项目、目标、待输入队列、待确认提问，
+在手机上都是同一份宿主状态，只是换成人能用的形态。完整口径见 [docs/desktop-consistency.md](../../docs/desktop-consistency.md)。
 
 | 位置 | 动作 |
 | --- | --- |
-| 底部大圆键 | 按住说话，松手即发；按住时图标变波形 |
-| `常听：开/关` | 持续听，只认「鲸灵 / 小鲸 / 嗨鲸灵 / hey whale / hello whale」 |
-| `朗读：开/关` | 语音合成开关 |
-| 输入框 | 打字派活，语音不可用时兜底 |
-| ⚙ 面板 | 切项目 / 切人设 / 开新会话 / 打断 / 自检 / 复制配对链接 |
+| 会话列表 | 按项目分组，最新在上；点一行进对话页 |
+| 对话页顶部 | 项目 / 会话标题、返回、换会话、开新会话 |
+| 目标条 | 目标正文与阶段；暂停 / 继续 / 完成 / 改 / 删（手机改完桌面同步） |
+| 队列条 | 桌面还在跑时这句排队；能看到并撤回队列里的句子 |
+| 待确认提问 | 卡片显示题干与选项；已踢回模型的可直接答，前台卡着的提示回电脑上答 |
+| 输入框 | 打字派活；语音不可用时兜底 |
+| 麦克风 / 朗读 | 按住说话、常听唤醒词（鲸灵 / 小鲸 / 嗨鲸灵 / hey whale）、回答自动朗读 |
+| 桌宠（可选） | 绑定某一只桌宠会话，只在手机上显示那只的开不开由你自己定 |
 
-唤醒词命中会「叮」一声 + 轻震，停顿约 1.1 秒自动提交。状态行固定：`我在～` / `在听，喊我鲸灵` / `在想…` / `在说…`。语义打断（说「停一下」）不保证，打断请点面板的「打断当前回答」。
+过程行（思考、执行命令、工具调用）**不在手机上渲染**：桌面要看细节，手机要的是「它在回我」。
 
 ## 接口
 
@@ -73,7 +79,13 @@ https://<你的地址>/pet-voice/?k=<token>
 
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
-| GET | `state` | 项目、人设、最近会话、唤醒词；只回 token 前 8 位 |
+| GET | `state` | 项目、预设、最近会话、`turns`、桌宠配置；只回 token 前 8 位 |
+| GET | `projects` / `sessions` | 项目列表；某项目的会话（分页 `before`/`limit`） |
+| GET | `session` | 一页转录 + `goal` + `inbox` + `asks` |
+| GET | `asks` | 还没答的提问（`state: open / continued`） |
+| POST | `answer` | `{sessionId, callId, answers:[{id, selected, custom?}]}`；只认 `continued` |
+| GET | `inbox` / POST `inbox` | 待输入队列读取与撤回 |
+| GET | `goals` / POST `goal` | 目标读取；暂停/继续/完成/改/删（带 `revision` 并发保护） |
 | POST | `new` | `{workspaceId?, projectPath?, preset?, fresh?}` → `{sessionId, reused}` |
 | POST | `dispatch` | `{text, sessionId?, attachments?}` → 202 受理；不带 sessionId 一律派给专属会话 |
 | POST | `upload?name=` | 原图字节（jpeg/png/webp/gif，≤12 MB）→ 落盘路径，可填进 `attachments` |

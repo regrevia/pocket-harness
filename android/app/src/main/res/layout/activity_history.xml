@@ -260,6 +260,28 @@
 
         </LinearLayout>
 
+        <!-- 电脑上在等一句回答的问题：有才显示，回答完撤掉 -->
+        <ScrollView
+            android:id="@+id/chatAsksScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginBottom="6dp"
+            android:scrollbars="none"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/chatAsks"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="14dp" />
+
+        </ScrollView>
+
         <!-- 还没轮到跑的那几句：一行一条，撤掉/调顺序都在这一行里 -->
         <LinearLayout
             android:id="@+id/chatQueue"

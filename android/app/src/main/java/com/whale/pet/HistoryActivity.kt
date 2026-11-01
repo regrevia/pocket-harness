@@ -33,6 +33,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.ScrollView
 import android.widget.TextView
 import org.json.JSONArray
 import org.json.JSONObject
@@ -117,6 +118,9 @@ class HistoryActivity : Activity() {
     private lateinit var goalDeleteBtn: android.widget.ImageButton
     private lateinit var goalQueue: TextView
     private lateinit var queueBar: LinearLayout
+    /** 电脑上在等回答的问题：有就摆在输入框上方。 */
+    private lateinit var asksBar: LinearLayout
+    private lateinit var asksScroll: ScrollView
     /** 队列里那几句：id 是宿主给的，撤掉/调顺序都按它认。 */
     private data class Queued(val id: String, val text: String)
     @Volatile private var goalId = ""
@@ -304,6 +308,8 @@ class HistoryActivity : Activity() {
         goalAction = findViewById(R.id.goalAction)
         goalQueue = findViewById(R.id.goalQueue)
         queueBar = findViewById(R.id.chatQueue)
+        asksBar = findViewById(R.id.chatAsks)
+        asksScroll = findViewById(R.id.chatAsksScroll)
         goalAction.setOnClickListener { toggleGoal() }
         // 目标条上的操作一律用图标：改（铅笔）、删（垃圾桶）。这两个常驻，
         // 包括已完成的阶段——那时候「暂停 / 继续」本来就不该出现，能做的只剩改和删。
@@ -513,6 +519,8 @@ class HistoryActivity : Activity() {
         chatPage(true)
         refreshHeader()
         reload()
+        // 回来先把在等回答的问题捞一次：电脑上刚问的，锁屏时问的，都在这张卡里
+        refreshAsks(force = true)
         // 回到页面：宿主若还在跑，发送位摆回中断、回答接着上屏
         syncSession({ reattach() })
         // 进来先只拉最新一页（宿主是真相源，手机只是缓存）；翻上去再要更早的
@@ -638,6 +646,7 @@ class HistoryActivity : Activity() {
     private val hostWatch = object : Runnable {
         override fun run() {
             syncSession()
+            refreshAsks()
             // 一分钟对齐一次宿主最新一页：电脑上刚说的话也能在这只对话里出现
             if (System.currentTimeMillis() - lastHostPageAt > 60_000L) loadHostPage(older = false)
             ui.postDelayed(this, if (hostBusy || localBusy) 3_000L else HOST_WATCH_MS)
@@ -872,6 +881,297 @@ class HistoryActivity : Activity() {
             row.setOnClickListener { steerQueued(item) }
             row.setOnLongClickListener { showQueueMenu(item); true }
             queueBar.addView(row)
+        }
+    }
+
+    /* ---------------- 等他回答：输入框上方那张卡 ---------------- */
+
+    // 3 秒一次的下限：reload、轮询都会顺手来对一遍，别把 /api/asks 打穿
+    @Volatile private var asksAt = 0L
+    @Volatile private var asksBusy = false
+    private var asksSig = ""
+    private var askErr: TextView? = null
+    /** 已选未提交的答案：key 是 callId + 问题 id。同一只 call 的问题一起交。 */
+    private val askPicked = LinkedHashMap<String, JSONObject>()
+
+    private fun refreshAsks(force: Boolean = false) {
+        if (!this::asksBar.isInitialized) return
+        if (isFinishing || isDestroyed) return
+        if (asksBusy) return
+        val now = System.currentTimeMillis()
+        if (!force && now - asksAt < 3_000L) return
+        val sid = PetSettings.chatSession(this)
+        asksAt = now
+        if (sid.isBlank()) {
+            renderAsks("", JSONArray())
+            return
+        }
+        asksBusy = true
+        Thread({
+            val res = runCatching {
+                PetClient { PetSettings.load(this) }.get("asks", mapOf("sessionId" to sid))
+            }.getOrNull()
+            ui.post {
+                asksBusy = false
+                if (isFinishing || isDestroyed) return@post
+                // 取不到就留着现在这张卡：旧问题也比「卡突然没了」强
+                if (res == null || !res.ok) return@post
+                if (sid != PetSettings.chatSession(this)) return@post
+                renderAsks(sid, res.json?.optJSONArray("asks") ?: JSONArray())
+            }
+        }, "pet-asks").apply { isDaemon = true }.start()
+    }
+
+    private fun asksVisible(on: Boolean) {
+        if (!this::asksScroll.isInitialized) return
+        asksScroll.visibility = if (on) View.VISIBLE else View.GONE
+    }
+
+    /** 问题一多就别把对话挤没：卡最高到半屏，里头自己滚。 */
+    private fun capAsks() {
+        if (!this::asksScroll.isInitialized) return
+        val max = (resources.displayMetrics.heightPixels * 0.46f).toInt()
+        asksBar.post {
+            if (isFinishing || isDestroyed) return@post
+            val want = if (asksBar.height > max) max else ViewGroup.LayoutParams.WRAP_CONTENT
+            val lp = asksScroll.layoutParams
+            if (lp.height != want) {
+                lp.height = want
+                asksScroll.layoutParams = lp
+            }
+        }
+    }
+
+    /** `asks` 是宿主原样的数组：一只 call 一条，空数组就是没有要问的。 */
+    private fun renderAsks(sid: String, asks: JSONArray) {
+        if (!this::asksBar.isInitialized) return
+        val sig = "$sid|$asks"
+        if (sig == asksSig) return
+        asksSig = sig
+        askPicked.clear()
+        askErr = null
+        asksBar.removeAllViews()
+        if (asks.length() == 0) {
+            asksVisible(false)
+            return
+        }
+        asksVisible(true)
+        for (i in 0 until asks.length()) {
+            val ask = asks.optJSONObject(i) ?: continue
+            if (i > 0) asksBar.addView(askDivider())
+            val callId = ask.optString("callId")
+            val state = ask.optString("state")
+            val head = ask.optString("header").trim()
+            if (head.isNotEmpty()) asksBar.addView(askLabel(head))
+            val questions = ask.optJSONArray("questions") ?: JSONArray()
+            for (j in 0 until questions.length()) {
+                val q = questions.optJSONObject(j) ?: continue
+                addAskQuestion(sid, callId, state, q)
+            }
+        }
+        capAsks()
+    }
+
+    private fun addAskQuestion(sid: String, callId: String, state: String, q: JSONObject) {
+        val qid = q.optString("id")
+        val head = q.optString("header").trim()
+        if (head.isNotEmpty()) asksBar.addView(askLabel(head))
+        asksBar.addView(TextView(this).apply {
+            text = q.optString("question").trim()
+            setTextColor(getColor(R.color.pet_text))
+            textSize = 14f
+            setLineSpacing(dp(3).toFloat(), 1f)
+            setPadding(0, dp(4), 0, 0)
+        })
+        // 宿主只在电脑那头收这题的答案：手机上不给按钮，说清楚去哪儿答
+        if (state == "open") {
+            asksBar.addView(askNote("这个话题在电脑上回答"))
+            return
+        }
+        val opts = q.optJSONArray("options") ?: JSONArray()
+        if (opts.length() == 0) {
+            addAskCustom(sid, callId, qid)
+            return
+        }
+        val multi = q.optBoolean("multiSelect")
+        val picked = LinkedHashSet<String>()
+        val views = ArrayList<TextView>()
+        fun paint() {
+            for (b in views) {
+                val on = (b.tag as String) in picked
+                b.setTextColor(getColor(if (on) R.color.pet_accent else R.color.pet_text))
+                b.background = getDrawable(if (on) R.drawable.bg_btn_outline else R.drawable.bg_chip)
+            }
+        }
+        for (k in 0 until opts.length()) {
+            val op = opts.optJSONObject(k) ?: continue
+            val label = op.optString("label").trim()
+            if (label.isEmpty()) continue
+            val desc = op.optString("description").trim()
+            val btn = TextView(this).apply {
+                text = if (desc.isEmpty()) label else "$label\n$desc"
+                textSize = 14f
+                setTextColor(getColor(R.color.pet_text))
+                setLineSpacing(dp(2).toFloat(), 1f)
+                setPadding(dp(12), dp(9), dp(12), dp(9))
+                background = getDrawable(R.drawable.bg_chip)
+                tag = label
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = dp(6) }
+                setOnClickListener {
+                    if (!multi) {
+                        pickAnswer(callId, qid, JSONArray().put(label))
+                        submitAsk(sid, callId)
+                        return@setOnClickListener
+                    }
+                    if (!picked.add(label)) picked.remove(label)
+                    paint()
+                }
+            }
+            views.add(btn)
+            asksBar.addView(btn)
+        }
+        if (multi) {
+            asksBar.addView(TextView(this).apply {
+                text = "提交"
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setTextColor(getColor(R.color.pet_accent))
+                setPadding(dp(12), dp(9), dp(12), dp(9))
+                background = getDrawable(R.drawable.bg_btn_outline)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = dp(8) }
+                setOnClickListener {
+                    if (picked.isEmpty()) return@setOnClickListener
+                    val sel = JSONArray()
+                    picked.forEach { sel.put(it) }
+                    pickAnswer(callId, qid, sel)
+                    submitAsk(sid, callId)
+                }
+            })
+        }
+    }
+
+    /** 没有选项的题：自己写一句再交，走 custom。 */
+    private fun addAskCustom(sid: String, callId: String, qid: String) {
+        val edit = EditText(this).apply {
+            hint = "回答"
+            setTextColor(getColor(R.color.pet_text))
+            setHintTextColor(getColor(R.color.pet_hint))
+            textSize = 14f
+            background = getDrawable(R.drawable.bg_input)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            maxLines = 4
+            setLineSpacing(dp(2).toFloat(), 1f)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) }
+        }
+        asksBar.addView(edit)
+        asksBar.addView(TextView(this).apply {
+            text = "提交"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(getColor(R.color.pet_accent))
+            setPadding(dp(12), dp(9), dp(12), dp(9))
+            background = getDrawable(R.drawable.bg_btn_outline)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) }
+            setOnClickListener {
+                val t = edit.text.toString().trim()
+                if (t.isEmpty()) return@setOnClickListener
+                askPicked["$callId\u0000$qid"] =
+                    JSONObject().put("id", qid).put("custom", t)
+                submitAsk(sid, callId)
+            }
+        })
+    }
+
+    private fun pickAnswer(callId: String, qid: String, selected: JSONArray) {
+        askPicked["$callId\u0000$qid"] =
+            JSONObject().put("id", qid).put("selected", selected)
+    }
+
+    /** 同一只 call 已经攒下的答案一起交：宿主那边一次只认一条 call 的 answers。 */
+    private fun submitAsk(sid: String, callId: String) {
+        if (asksBusy) return
+        val answers = JSONArray()
+        for ((key, value) in askPicked) {
+            if (key.startsWith("$callId\u0000")) answers.put(value)
+        }
+        if (answers.length() == 0) return
+        asksBusy = true
+        Thread({
+            val body = JSONObject()
+                .put("sessionId", sid)
+                .put("callId", callId)
+                .put("answers", answers)
+            val res = runCatching {
+                PetClient { PetSettings.load(this) }.postJson("answer", body)
+            }.getOrNull()
+            ui.post {
+                asksBusy = false
+                if (isFinishing || isDestroyed) return@post
+                if (res != null && res.ok) {
+                    // 答进去了：卡撤掉，对话刷一次；宿主把答案放进下一轮
+                    askPicked.clear()
+                    askErr = null
+                    asksSig = ""
+                    asksAt = System.currentTimeMillis()
+                    asksBar.removeAllViews()
+                    asksVisible(false)
+                    runCatching { reload() }
+                    refreshAsks(force = true)
+                } else {
+                    showAskError(res?.error() ?: "回答没送出去")
+                }
+            }
+        }, "pet-answer").apply { isDaemon = true }.start()
+    }
+
+    /** 交不上去就原样说清原因，就写在卡里，不弹窗。 */
+    private fun showAskError(msg: String) {
+        if (!this::asksBar.isInitialized) return
+        asksVisible(true)
+        capAsks()
+        val tv = askErr ?: TextView(this).apply {
+            textSize = 12f
+            setTextColor(getColor(R.color.pet_accent_dim))
+            setPadding(0, dp(8), 0, 0)
+            asksBar.addView(this)
+            askErr = this
+        }
+        tv.text = msg
+    }
+
+    private fun askLabel(text: String): TextView = TextView(this).apply {
+        this.text = text
+        setTextColor(getColor(R.color.pet_hint))
+        textSize = 12f
+        setPadding(0, dp(2), 0, 0)
+    }
+
+    private fun askNote(text: String): TextView = TextView(this).apply {
+        this.text = text
+        setTextColor(getColor(R.color.pet_hint))
+        textSize = 12f
+        setPadding(0, dp(6), 0, 0)
+    }
+
+    private fun askDivider(): View = View(this).apply {
+        setBackgroundColor(getColor(R.color.pet_line))
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(1),
+        ).apply {
+            topMargin = dp(12)
+            bottomMargin = dp(12)
         }
     }
 
@@ -1309,6 +1609,7 @@ class HistoryActivity : Activity() {
         empty.text = EMPTY_IDLE
         empty.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
         if (!keepScroll) scrollToBottom()
+        refreshAsks()
     }
 
     private val pinJump = Runnable {

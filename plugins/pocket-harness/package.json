@@ -1,6 +1,6 @@
 {
   "name": "pocket-harness",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Pocket Harness：DSH 手机端。手机上接着用电脑里的同一份 DSH —— 会话、项目、目标、队列状态一致；语音与桌宠可选。",
   "type": "module",
   "engines": {
