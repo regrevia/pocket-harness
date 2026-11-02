@@ -2369,3 +2369,10 @@ PATH 要带上 node 目录，launchd 的默认 PATH 里没有）。管理命令�
 **宿主侧验证（无设备）**：直接调 `__browseInternals.sessionDetail` 读本机真实转录——
 `limit 40, only dialog` → 40 条（user 35 / assistant 5，hasMore true）；`before 56000` 续翻到 33 条并
 `hasMore false`（真到文件头）；不带 `only` 的对照组 40 条里 37 条是工具行，正是空白来源。
+
+## 23.48 包名改名 pocket-harness、悬浮窗默认关、权限按需申请（0.9.146）
+
+- 安装身份改为 `com.pocketharness.app`（`namespace` 仍是 `com.whale.pet`，代码目录没动），应用名 `Pocket Harness`，`versionCode 216` / `versionName 0.9.146`。改 `applicationId` 等于换了一个应用：旧包 `com.whale.pet` 不会被覆盖，配对信息、设置、登录态都不继承，装完要重新扫码绑定。
+- 悬浮窗与对话默认关闭：`PetSettings.bubble` 默认 `false`，`FloatingPetService` 只在用户点「开悬浮窗」时启动；开机自启仍受 `autoStart`（默认 `false`）与已有悬浮窗权限双重约束，没授权就静默返回。
+- 悬浮窗权限不再进入即催：主页权限行里不再显示悬浮窗项，只有真正点开悬浮窗、而系统还没授权时才申请，申请前给一句「允许后自动回来」，返回后由 `awaitingOverlay` 复查并继续启动。
+- 真机 `15ca9736` 核对：全新安装后启动停在「大肥鱼 · 未绑定」，无悬浮窗权限弹窗、`SYSTEM_ALERT_WINDOW` 未授予、`FloatingPetService` 没有服务实例。

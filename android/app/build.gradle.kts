@@ -16,11 +16,11 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.whale.pet"
+        applicationId = "com.pocketharness.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 215
-        versionName = "0.9.145"
+        versionCode = 216
+        versionName = "0.9.146"
     }
 
     signingConfigs {

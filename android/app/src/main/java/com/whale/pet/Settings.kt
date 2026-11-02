@@ -20,7 +20,7 @@ data class PetConfig(
     val wakeEnabled: Boolean = false,
     val autoStart: Boolean = false,
     /** 悬浮窗头顶气泡（插件面板里的 `bubble` 是同一个开关）。 */
-    val bubble: Boolean = true,
+    val bubble: Boolean = false,
     val wakeName: String = "大肥鱼",
     val spriteSize: Int = 168,
     /** 立绘服装（assets/aster/<outfit>）；空串 = 原来的视频素材。 */
@@ -183,7 +183,7 @@ object PetSettings {
             preset = p.getString(K_PRESET, "whale") ?: "whale",
             wakeEnabled = p.getBoolean(K_WAKE, false),
             autoStart = p.getBoolean(K_AUTOSTART, false),
-            bubble = p.getBoolean(K_BUBBLE, true),
+            bubble = p.getBoolean(K_BUBBLE, false),
             wakeName = PetConfig.cleanWakeName(
                 // 旧默认称呼随版本改名，老安装里的「鲸灵」跟着改成新默认
                 p.getString(K_WAKE_NAME, PetConfig.DEFAULT_WAKE_NAME)

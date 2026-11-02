@@ -1135,14 +1135,13 @@ class MainActivity : Activity() {
 
     /** 权限逐项申请：状态本身可点，未授权才用强调色。 */
     private fun refreshPerms() {
-        val ov = findViewById<TextView>(R.id.permOverlay)
+        // 悬浮窗权限不在进入时催：真去开悬浮窗那一刻才申请，平时不占版面。
         val mic = findViewById<TextView>(R.id.permMic)
-        val ovOk = Settings.canDrawOverlays(this)
         val micOk = granted(Manifest.permission.RECORD_AUDIO)
-        ov.visibility = if (ovOk) View.GONE else View.VISIBLE
+        findViewById<TextView>(R.id.permOverlay).visibility = View.GONE
         mic.visibility = if (micOk) View.GONE else View.VISIBLE
         findViewById<LinearLayout>(R.id.permBox).visibility =
-            if (ovOk && micOk) View.GONE else View.VISIBLE
+            if (micOk) View.GONE else View.VISIBLE
     }
 
     /**
@@ -1241,6 +1240,7 @@ class MainActivity : Activity() {
         }
         if (!Settings.canDrawOverlays(this)) {
             awaitingOverlay = true
+            toast("开悬浮窗要用「显示在其他应用上层」，允许后自动回来")
             openOverlayPermission()
             return
         }
@@ -1255,6 +1255,7 @@ class MainActivity : Activity() {
         }
         if (!Settings.canDrawOverlays(this)) {
             awaitingOverlay = true
+            toast("开悬浮窗要用「显示在其他应用上层」，允许后自动回来")
             openOverlayPermission()
             return
         }
