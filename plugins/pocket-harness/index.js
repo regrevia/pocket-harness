@@ -2131,6 +2131,9 @@ function sessionDetail(query) {
   if (!id) return null
   const limit = clampLimit(query?.limit)
   const before = toMs(query?.before)
+  // 手机对话视图不展示工具执行记录：让宿主只回「人说的话」，一页才真是一页对话。
+  // 否则一页几十条全是工具帧，App 过滤完只剩空白（这正是手机上翻不出历史的根因）。
+  const dialogOnly = String(query?.only ?? '').trim() === 'dialog'
   const meta = projectCacheOf(id)
   const file = transcriptPathOf(id)
   if (!file && !meta.title && !meta.cwd) return null
@@ -2139,16 +2142,25 @@ function sessionDetail(query) {
   let page = []
   let hasMore = false
   if (file) {
-    // 先解尾部一小段；`before` 很老时逐级扩大，直到凑够这一页或解到文件头。
+    // 先解尾部一小段；不够一页就逐级放大窗口，直到「解出来的消息明显多过这一页」或解到文件头。
+    //
+    // 只看「凑够 limit 条」不够：转录里绝大多数帧是工具执行记录，手机的对话视图会把它们
+    // 全过滤掉。窗口按条数刚够时，过滤完常常一条不剩——手机上就是一片空白。
+    // 所以要求窗口里的消息数达到页长的若干倍，才认为这些帧能填满一页对话。
     const base = Math.max(60, (limit + 10) * 5)
+    const want = dialogOnly ? 120 : limit * 4
     let decoded = null
-    for (const needLines of [base, base * 4, base * 16, 12000]) {
+    for (const needLines of [base, base * 8, base * 48, 12000, 48000, 200000]) {
       decoded = transcriptEntriesOf(file, needLines)
-      const pool = before > 0 ? decoded.entries.filter((entry) => entry.seq < before) : decoded.entries
+      const pool = (before > 0 ? decoded.entries.filter((entry) => entry.seq < before) : decoded.entries).filter(
+        (entry) => !dialogOnly || entry.role !== 'tool',
+      )
       page = pool.slice(-limit)
-      hasMore = pool.length > page.length
+      // 「还有更早的」不能只看解出来的窗口里剩没剩：尾部只解了一小段时，
+      // pool 常常整个装不满一页，按老算法会谎报 hasMore=false，手机就再也翻不到上文。
       const reachedStart = decoded.decodedFrames >= decoded.frames - 1
-      if (hasMore || reachedStart || decoded.truncated || needLines >= 12000 || !decoded.entries.length) break
+      hasMore = pool.length > page.length || !reachedStart
+      if (reachedStart || pool.length >= want || !decoded.entries.length) break
     }
     if (decoded?.headText) {
       try {
@@ -6363,6 +6375,7 @@ export function apply(ctx, config) {
             id: url.searchParams.get('id') ?? '',
             limit: url.searchParams.get('limit') ?? '',
             before: url.searchParams.get('before') ?? '',
+            only: url.searchParams.get('only') ?? '',
           })
           if (!payload) return sendJson(res, 404, { ok: false, error: '会话不存在' })
           const sid = url.searchParams.get('id') ?? ''

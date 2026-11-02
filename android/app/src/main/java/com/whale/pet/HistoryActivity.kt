@@ -55,6 +55,7 @@ class HistoryActivity : Activity() {
     private companion object {
         /** 对话列表空着时的那句话（加载中会临时换成别的，加载完换回来）。 */
         const val EMPTY_IDLE = "说句话开始"
+        const val EMPTY_NO_ROWS = "这只对话在桌面端没有文字消息"
 
         /** 扫码页的请求码（首页用的是 42，这里错开）。 */
         const val REQ_SCAN = 43
@@ -1587,26 +1588,34 @@ class HistoryActivity : Activity() {
         val older = PetHistory.count(this) - items.size
         val rows = ArrayList<ChatRow>(items.size + 2)
         if (older > 0 || hostMore) rows.add(ChatRow.More(older))
+        // 只有最后一条助手消息挂富文本渲染器：多个 WebView 各自异步量高矮，
+        // 历史行会摞在一起（后一句压住前一句），看起来像气泡重叠
+        val lastPetIndex = items.indexOfLast { !it.isNote && !it.isMe && InjectedText.stripPluginBlocks(it.text).isNotBlank() }
         items.forEachIndexed { i, item ->
             if (item.isNote) {
                 rows.add(ChatRow.Note(item.text))
             } else if (item.isMe) {
-                // 本地库里有更早版本落下的注入残留（压缩摘要碎块）：显示时再挡一道
-                if (isInjectedText(item.text)) return@forEachIndexed
-                rows.add(ChatRow.Me(item.text, item.ts, item.atts))
+                // 本地库里有更早版本落下的注入残留（压缩摘要碎块）：显示时再挡一道；
+                // 剥完什么都不剩的整条不摆——气泡里没字就是一个空白框
+                val shownMe = InjectedText.stripPluginBlocks(item.text)
+                if (shownMe.isBlank() || isInjectedText(shownMe)) return@forEachIndexed
+                if (InjectedText.isProcessNotice(shownMe)) return@forEachIndexed
+                rows.add(ChatRow.Me(shownMe, item.ts, item.atts))
             } else {
                 // 本地库里可能有旧版本落下的插件观察块：显示前再剥一道，剥完是空的就不摆
                 val shown = InjectedText.stripPluginBlocks(item.text)
                 if (shown.isBlank() || isInjectedText(shown)) return@forEachIndexed
+                // 过程行（后台任务回执之类）不在手机上渲染，桌面上它是折叠的
+                if (InjectedText.isProcessNotice(shown)) return@forEachIndexed
                 // 只有最后一条助手消息挂富文本渲染器：历史长列表里塞多个 WebView 会卡
-                rows.add(ChatRow.Pet(shown, rich = true))
+                rows.add(ChatRow.Pet(shown, rich = i == lastPetIndex))
             }
         }
         val live = liveText
         if (live.isNotBlank()) rows.add(ChatRow.Live(live))
         adapter.rows = rows
         adapter.notifyDataSetChanged()
-        empty.text = EMPTY_IDLE
+        empty.text = if (PetSettings.chatSession(this).isNotBlank()) EMPTY_NO_ROWS else EMPTY_IDLE
         empty.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
         if (!keepScroll) scrollToBottom()
         refreshAsks()
@@ -1680,20 +1689,39 @@ class HistoryActivity : Activity() {
                     seedNewest = true
                     return@Thread
                 }
-                val res = client.session(sid, HOST_PAGE, if (before > 0L) before else null)
-                val json = res.json
-                android.util.Log.i("PetChat", "hostpage res ok=${res.ok} code=${res.code} before=$before json=${json != null}")
-                if (res.ok && json != null) {
+                // 「最新一页」经常全是工具执行记录（一条命令、一段日志）：手机上不摆这些行，
+                // 一片翻下来屏上就空了。所以顺着 before 继续往前翻，翻到人说的话为止。
+                val acc = ArrayList<PetHistory.Item>()
+                var cursor = before
+                var more = false
+                var got = false
+                var dry = 0
+                var atStart = false
+                var attempt = 0
+                while (attempt < 8) {
+                    attempt++
+                    // 一页就是一页对话：only=dialog 让宿主把工具执行记录剔掉（老宿主不认也无害）。
+                    // 往下补的时候要一大页——旧宿主只解文件尾部一小段，页长要得小它就把三条当全部。
+                    val askLimit = if (attempt == 1) HOST_PAGE else 200
+                    val res = client.session(sid, askLimit, if (cursor > 0L) cursor else null, only = "dialog")
+                    val json = res.json
+                    android.util.Log.i("PetChat", "hostpage res ok=${res.ok} code=${res.code} before=$cursor json=${json != null}")
+                    if (!res.ok || json == null) break
+                    got = true
                     val arr = json.optJSONArray("messages") ?: JSONArray()
                     val page = ArrayList<PetHistory.Item>(arr.length())
+                    var minSeq = 0L
                     for (i in 0 until arr.length()) {
                         val o = arr.optJSONObject(i) ?: continue
+                        val seq = o.optLong("seq", 0L)
+                        if (seq > 0L && (minSeq == 0L || seq < minSeq)) minSeq = seq
                         // 插件的观察块（视觉辅助 IntelliF 之类）整块切掉；切完只剩空白的整条不摆
                         val text = InjectedText.stripPluginBlocks(o.optString("text"))
                         if (text.isEmpty()) continue
                         // 运行时注入的上下文（<goal_round> 之类）不是人说的话，对话里不摆
                         if (text.startsWith("<")) continue
                         if (isInjectedText(text)) continue
+                        if (InjectedText.isProcessNotice(text)) continue
                         val role = when (o.optString("role")) {
                             "user" -> PetHistory.ROLE_ME
                             "assistant" -> PetHistory.ROLE_PET
@@ -1701,15 +1729,47 @@ class HistoryActivity : Activity() {
                         }
                         page.add(
                             PetHistory.Item(
-                                role, text, o.optLong("time", 0L), sid, emptyList(), o.optLong("seq", 0L)
+                                role, text, o.optLong("time", 0L), sid, emptyList(), seq
                             )
                         )
                     }
-                    added = PetHistory.mergeHost(this, sid, page, older)
+                    // 更早的一页排在前面：最后合并出来的顺序还是「老在上、新在下」
+                    acc.addAll(0, page)
+                    more = json.optBoolean("hasMore", false)
+                    android.util.Log.i("PetChat", "hostpage page=$attempt rows=${page.size} acc=${acc.size} more=$more")
+                    // 一直翻到凑够一屏（HOST_PAGE 条）：只翻一页的话，长会话里
+                    // 第一次打开常常只有一两条甚至零条，屏上全是空白，想滚也没有东西可滚
+                    if (acc.size >= HOST_PAGE) break
+                    if (minSeq <= 0L) {
+                        atStart = true
+                        break
+                    }
+                    // 宿主说「没有更早的了」也未必可信：它只解了文件尾部一小段，
+                    // 把解出来的当成了全部。先不认，往前再要一页确认；这一页还是空的才收手。
+                    if (!more) {
+                        // 宿主只解了转录文件尾部一小段，尾部很可能全是过程行（过滤后一条不剩）。
+                        // 这时候说「没有更早的」不可信：接着按 before 往前翻，直到翻出人说的话。
+                        if (acc.isNotEmpty() || arr.length() == 0) {
+                            atStart = acc.isEmpty() && arr.length() == 0
+                            break
+                        }
+                        if (dry >= 4) {
+                            atStart = true
+                            break
+                        }
+                        dry++
+                        cursor = minSeq
+                        continue
+                    }
+                    cursor = minSeq
+                }
+                if (got) {
+                    added = PetHistory.mergeHost(this, sid, acc, older)
                     hostSid = sid
-                    hostMore = json.optBoolean("hasMore", false)
+                    // 「翻到头了」只有真到文件头才算；宿主少报 hasMore 时留一条往上翻的路
+                    hostMore = more || !atStart
                     lastHostPageAt = System.currentTimeMillis()
-                    android.util.Log.i("PetChat", "hostpage merged page=${page.size} added=$added hasMore=$hostMore")
+                    android.util.Log.i("PetChat", "hostpage merged page=${acc.size} added=$added hasMore=$hostMore")
                 }
             } catch (e: Exception) {
                 android.util.Log.i("PetChat", "hostpage fail ${e.javaClass.simpleName}: ${e.message}")

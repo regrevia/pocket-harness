@@ -68,6 +68,12 @@ object InjectedText {
         RegexOption.IGNORE_CASE,
     )
 
+    /** `IntelliF: 图片请求无响应，…` 这种「插件名 + 冒号 + 一行说明」的提示行。 */
+    private val pluginNotice = Regex(
+        "(?m)^[\\s>#*·\\-]*(?:IntelliF|视觉辅助观察)\\s*[:：][^\\n]*",
+        RegexOption.IGNORE_CASE,
+    )
+
     /** 去掉正文开头的 markdown 装饰后再认标记。 */
     private val headDecor = Regex("^[\\s#>*·\\-—]+")
 
@@ -104,12 +110,35 @@ object InjectedText {
      * 视觉辅助插件的观察块认出来就整块切掉；它跟正常正文混在同一条里时，
      * 只去掉块本身，正文照常上屏。
      */
+    /**
+     * 后台任务回执：宿主把「命令跑完了」当成一条助手消息写进转录
+     * （`background job bash-… finished …`、`(bash: …, exit code: 0). Read its output with job_output.`）。
+     * 桌面上它是可折叠的过程行，手机上第 3 行规定不渲染——这里统一认出来。
+     */
+    fun isProcessNotice(text: CharSequence?): Boolean {
+        if (text == null) return false
+        val raw = text.trim()
+        if (raw.isEmpty()) return false
+        // 后台任务回执常常把整段命令一起带进来（上千字），不能按长度一刀切：认开头
+        val jobHead = raw.startsWith("background job ") || raw.startsWith("job ")
+        if (jobHead) {
+            return raw.contains("exit code") || raw.contains("finished [status:") ||
+                raw.contains("completed [status:")
+        }
+        if (raw.length > 600) return false
+        if (raw.startsWith("(bash:") || raw.startsWith("bash:")) {
+            return raw.contains("exit code") || raw.contains("job_output")
+        }
+        return raw.contains("Read its output with job_output") && raw.contains("exit code")
+    }
+
     fun stripPluginBlocks(text: CharSequence?): String {
         val raw = text?.toString().orEmpty()
         if (raw.isEmpty() || !pluginMarker.containsMatchIn(raw)) return raw.trim()
         var out = pluginPair.replace(raw, "")
         out = pluginBracket.replace(out, "")
         out = pluginHeading.replace(out, "")
+        out = pluginNotice.replace(out, "")
         return out.trim()
     }
 

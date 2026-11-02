@@ -200,9 +200,11 @@ class PetClient(private val config: () -> PetConfig) {
     }
 
     /** `GET /api/session?id=&limit=&before=`：before 是上一页最早一条的 seq。 */
-    fun session(id: String, limit: Int = 20, before: Long? = null): Result {
+    fun session(id: String, limit: Int = 20, before: Long? = null, only: String? = null): Result {
         val q = linkedMapOf("id" to id, "limit" to limit.toString())
         if (before != null && before > 0) q["before"] = before.toString()
+        // 只要人说的话：宿主按这个参数把工具执行记录剔掉，一页才真是一页对话。
+        if (!only.isNullOrBlank()) q["only"] = only
         return get("session", q)
     }
 
