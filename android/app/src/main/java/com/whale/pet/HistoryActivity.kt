@@ -764,7 +764,8 @@ class HistoryActivity : Activity() {
         if (hostOnly) {
             runBusyOwned = true
             runBar.visibility = View.VISIBLE
-            runText.text = "深度求索中 · 用时 ${busyElapsed()}"
+            // 这句是手机发的、宿主说排上了：跟桌面端一样如实说排队，不说「深度求索中」
+            runText.text = if (queuedNote) PET_QUEUED_TEXT else "深度求索中 · 用时 ${busyElapsed()}"
             startBusyTick()
         } else if (runBusyOwned) {
             runBusyOwned = false
@@ -986,7 +987,32 @@ class HistoryActivity : Activity() {
         })
         // 宿主只在电脑那头收这题的答案：手机上不给按钮，说清楚去哪儿答
         if (state == "open") {
-            asksBar.addView(askNote("这个话题在电脑上回答"))
+            // 审批（intent.approve）与提问不是同一种等：说清在电脑上等批准，不给假按钮
+            val approve = q.optString("approve").trim()
+            asksBar.addView(askNote(if (approve.isNotEmpty()) "电脑上正在等你批准" else "这个话题在电脑上回答"))
+            // 选项照样要摆出来：桌面上那几条候选就是「现在在等什么」，只是手机上点不了
+            val waiting = q.optJSONArray("options") ?: JSONArray()
+            for (k in 0 until waiting.length()) {
+                val op = waiting.optJSONObject(k) ?: continue
+                val label = op.optString("label").trim()
+                if (label.isEmpty()) continue
+                val desc = op.optString("description").trim()
+                asksBar.addView(TextView(this).apply {
+                    text = if (desc.isEmpty()) label else "$label\n$desc"
+                    textSize = 14f
+                    setTextColor(getColor(R.color.pet_hint))
+                    setLineSpacing(dp(2).toFloat(), 1f)
+                    setPadding(dp(12), dp(9), dp(12), dp(9))
+                    background = getDrawable(R.drawable.bg_chip)
+                    alpha = 0.55f
+                    isClickable = false
+                    isFocusable = false
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ).apply { topMargin = dp(6) }
+                })
+            }
             return
         }
         val opts = q.optJSONArray("options") ?: JSONArray()
@@ -1445,7 +1471,7 @@ class HistoryActivity : Activity() {
         val myKey = PetSettings.chatSession(this).ifBlank { target }.removePrefix("session-")
         val busyOnHost = turns != null && myKey.isNotBlank() && turns.has(myKey)
         // 刚按过终止：宿主还没收尾就别把中断方块摆回来；它真停了才松开这个闸
-        if (!busyOnHost) stopping = false
+        if (!busyOnHost) { stopping = false; queuedNote = false }
         val busy = busyOnHost && !stopping
         if (busy != hostBusy) {
             hostBusy = busy
@@ -1940,7 +1966,7 @@ class HistoryActivity : Activity() {
                 steerRetry = null
                 val steered = res.json?.optBoolean("steered") == true
                 if (!steered) queuedNote = true
-                runText.text = if (steered) "引导中" else "排队中"
+                runText.text = if (steered) "引导中" else "电脑上还在跑，这句排上了"
                 ui.removeCallbacks(hostWatch)
                 ui.postDelayed(hostWatch, 600L)
             }
@@ -2134,7 +2160,11 @@ class HistoryActivity : Activity() {
         turn = null
         // 这轮到此为止：代号换掉，后续迟到的帧/回调一律不认识
         turnToken = ++turnSeq
-        queuedNote = false
+        // 宿主说「排上了」不是失败：这轮没字是正常的，别落到「没收到回复」
+        if (ended?.hostQueued == true) queuedNote = true
+        NetLog.record("finishTurn", 0, 0, "queuedNote=$queuedNote hostQueued=${ended?.hostQueued} err=${error?.take(40)}")
+        val queuedOnHost = queuedNote
+        // 排队这点事得留到宿主的这一轮真跑完：清了就退回「深度求索中」，等于把话说丢了
         typing.visibility = View.GONE
         runBar.visibility = View.GONE
         val finalText = adapter.live
@@ -2145,6 +2175,13 @@ class HistoryActivity : Activity() {
         // 已落进待发队列：这句没丢，别给「重试」按钮（再点一次就是第二轮），只告诉用户它会自己发
         val queued = error != null && error.contains("已排队")
         when {
+            // 电脑上还在跑，这句排上了：这才是一轮的真实落点，不给重试按钮
+            queuedOnHost -> {
+                adapter.error = ""
+                adapter.errorAction = null
+                runText.text = PET_QUEUED_TEXT
+                runBar.visibility = View.VISIBLE
+            }
             // 自己按的终止：跟桌面端一样只说「已终止」，不再报「没收到回复」
             userStopped -> {
                 adapter.error = ""
@@ -2255,7 +2292,7 @@ class HistoryActivity : Activity() {
                 return
             }
             val el = String.format("%02d:%02d", ms / 60_000, (ms / 1000) % 60)
-            runText.text = if (ms > 90_000) "还在跑 · 用时 $el · 可中断" else "深度求索中 · 用时 $el"
+            runText.text = if (ms > 90_000) "回复中 · 用时 $el · 可中断" else "回复中 · 用时 $el"
             updateSendAffordance()
             ui.postDelayed(this, 1000)
         }

@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /** 电脑上那一轮还在跑时宿主回的 queued 帧：这句在排队，不是在思考。 */
-const val PET_QUEUED_TEXT = "电脑上还在跑，已排队"
+const val PET_QUEUED_TEXT = "电脑上还在跑，这句排上了"
 
 /**
  * 一轮对话：SSE 先连上（拿到 hello）再派发，保证 delta 不丢；
@@ -90,6 +90,9 @@ class PetTurn(
     /** 宿主到底收下这句没有。收下了就别再补发（会重复），没收下就必须落盘。 */
     @Volatile
     private var delivered = false
+
+    /** 宿主回包说这句排在电脑上那一轮后面：上层据此按「排队」收尾，不报红。 */
+    @Volatile var hostQueued = false
     /** 宿主明确拒收（4xx，不是网络问题）：重发不会变好，界面直说并停手。 */
     @Volatile private var permanent = false
 
@@ -475,6 +478,14 @@ class PetTurn(
         delivered = true
         sessionId = resolvedOf(res)
         adoptResolved(sessionId, adoptionBaseline())
+        // 宿主说「电脑上那一轮还在跑，这句排上了」：这一轮不会再有手机专属的回复，
+        // 立刻如实收尾（顶上写排队），用户那几秒也不会看到「正在想…」的空转。
+        if (res.json?.optBoolean("queued") == true) {
+            hostQueued = true
+            NetLog.record("POST /api/dispatch", 200, 0, "queued=true，按排队收尾")
+            main.post { cb.onStatus(PET_QUEUED_TEXT) }
+            return
+        }
         startPollFallback()
         status("正在想…")
         val deadline = System.currentTimeMillis() + 360_000
@@ -527,6 +538,14 @@ class PetTurn(
         delivered = true
         sessionId = resolvedOf(res)
         adoptResolved(sessionId, adoptionBaseline())
+        // 宿主说「电脑上那一轮还在跑，这句排上了」：这一轮不会再有手机专属的回复，
+        // 立刻如实收尾（顶上写排队），用户那几秒也不会看到「正在想…」的空转。
+        if (res.json?.optBoolean("queued") == true) {
+            hostQueued = true
+            NetLog.record("POST /api/dispatch", 200, 0, "queued=true，按排队收尾")
+            main.post { cb.onStatus(PET_QUEUED_TEXT) }
+            return
+        }
         if (sessionId.isBlank()) {
             postError("没发出去，重试")
             return
@@ -537,6 +556,7 @@ class PetTurn(
         var downStreak = 0
         var downAt = 0L
         while (!cancelled.get() && !ended.get() && System.currentTimeMillis() < deadline) {
+            val pollAt = System.currentTimeMillis()
             val r = try {
                 client.poll(sessionId, cursor, 20_000)
             } catch (_: Exception) {
@@ -579,6 +599,12 @@ class PetTurn(
                 }
             }
             if (j.optBoolean("done", false)) return
+            // 宿主本该长轮询挂着不立刻回：它要是立刻回了个空帧（代理缓冲、桩服务、老宿主），
+            // 这里必须自己歇一下，否则一秒几十次 /api/poll，手机发烫、电脑被刷满。
+            if (frames == null || frames.length() == 0) {
+                val spent = System.currentTimeMillis() - pollAt
+                if (spent < IDLE_POLL_FLOOR_MS) sleepQuietly(IDLE_POLL_FLOOR_MS - spent)
+            }
         }
         if (!cancelled.get() && !ended.get()) postError(TIMEOUT_TEXT)
     }
@@ -993,6 +1019,9 @@ class PetTurn(
 
         /** 轮询连续断开超过这么久才算真断（期间自动重连，界面只留一行状态）。 */
         const val POLL_DOWN_MS = 30_000L
+
+        /** 空帧连续不断就等于死循环：两次轮询之间至少留这么久，别把电脑和手机一起拖住。 */
+        const val IDLE_POLL_FLOOR_MS = 400L
 
         /** 界面那一行状态：说人话，不写重试策略、不写内部名词。 */
         const val LINK_LOST_TEXT = "信号不好，正在重连…"

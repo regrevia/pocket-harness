@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Pocket Harness</string>
-    <string name="notif_channel_name">大肥鱼常驻</string>
-    <string name="notif_title">大肥鱼在听</string>
+    <string name="notif_channel_name">小鱼常驻</string>
+    <string name="notif_title">小鱼在听</string>
     <string name="notif_text">按住浮窗说话 · 松手发送</string>
 </resources>

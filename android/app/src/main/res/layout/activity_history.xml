@@ -252,6 +252,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
                 android:paddingTop="6dp"
                 android:paddingBottom="6dp"
                 android:text="处理中"

@@ -35,3 +35,128 @@
 - 第 8 行（权限审批）：宿主只给「客户端 UI 的按钮」这条路，插件目前没有稳定答口。
   写进表里当缺口，不拿「回复中」糊过去。
 - 计划审批（`intent.kind = plan-review`）走第 7 行同一条路，只是「通过」项按 `approve` 排前面。
+
+## 验收记录
+
+只在真机上看到对应状态才算过。场景都用 `192.168.51.19:18765` 的桩（stub）切换，
+设备 `15ca9736`，装的是 `com.pocketharness.app` 0.9.147 之后的构建。
+
+### 第 10 行 · 排队落点（2026-11-03 02:21）
+
+- 场景：桩 `busy`，`GET /api/state` → `turns.stub-session.busy=true`、`origin=desktop`
+- 操作：输入 `queued probe 11` → 发送
+- 回包：`POST /api/dispatch` 200，体里 `{ok:true, queued:true, sessionId:"stub-session"}`
+- 机上看到：运行条 `#chatRunText` = `电脑上还在跑，这句排上了`；`#chatTyping` 不在；
+  没有「没收到回复，重试」那一行
+- 应用日志：`files/net.log` 里 `02:21:21 POST /api/dispatch http=200`，
+  紧接着 `queued=true，按排队收尾`、`finishTurn queuedNote=true hostQueued=true err=null`
+- 截图：`docs/evidence/item10-runbar.png`
+
+这条以前是假状态：回包的 `queued` 只被轮询帧用，`PetTurn` 从 dispatch 回包读不到，
+`finishTurn` 又把这一轮当「没出字」，于是运行条退回「深度求索中 · 用时 …」。
+现在 `PetTurn` 把回包里的 `queued` 记成 `hostQueued`，`finishTurn` 直接按排队收尾。
+
+### 第 2 行 · 流式占位到真文本（2026-11-03 04:04）
+
+- 场景：桩 `stream`，`/api/poll` 依次给 `start` → 4 个 `delta` → `final` → `end` 共 7 帧，
+  帧之间夹空帧（配合 `IDLE_POLL_FLOOR_MS=400`，一整轮约 6–8 秒，中间态能看清）
+- 操作：输入 `流式探针 seed24` → 发送；发送后 1.7 秒截屏
+- 机上看到：
+  - 中间态：运行条 `正在想`，助手气泡只有占位、没有正文；右下角发送键变成停止键
+  - 收尾：只剩 **一条** 助手气泡 `先看一眼第 6 轮真机状态：回复中先占位，再逐段换成真文本。`，
+    「回复中 / 正在想」不残留，没有第二条重复气泡
+- 截图：`docs/evidence/item2-streaming-placeholder.jpg`（占位）、`item2-streaming-live.jpg`（逐段）
+
+以前这里的问题是：帧来得太快，占位和终稿几乎同一帧落屏，等于「假流式」；
+桩按真实节奏放帧后，占位 → 逐段 → 终稿三段都能在屏幕上看到，且不重复、不残留。
+
+### 第 4 行 · 队列条撤回 / 上移 / 下移（2026-11-03 04:10–04:14）
+
+- 场景：桩 `queue`，`inbox` 三条（`q1` 第一条 / `q2` 第二条 / `q3` 第三条）
+- 机上看到：输入框上方一行队列条，三行都是 `待输入 · <正文>`，每行尾巴带 `直接发送`、`撤掉`
+- 长按第二行 → 弹出 `上移 / 下移 / 撤掉`
+- 点 `上移`：桩记 `inbox action=up id=q2`，屏上顺序变成 二 / 一 / 三
+  （截图 `docs/evidence/item4-queue-menu.jpg`、`item4-queue-reordered.jpg`）
+- 点 `下移`：桩记 `inbox action=down id=q1`，顺序变成 二 / 三 / 一
+- 撤回：此前同一条队列条上点 `撤掉`，55ms 内行消失，桩记 `inbox action=remove`
+  （截图 `docs/evidence/item4-after-withdraw.jpg`）
+
+以前这条卡在「点了没反应」：空帧轮询是热循环，`adb_tap` 的落点还没生效界面就被重绘。
+`IDLE_POLL_FLOOR_MS` 把空帧压到 400ms 后，点击、长按、拖动都能落在真实控件上。
+
+### 第 5 行 · 目标暂停 / 继续（2026-11-03 04:17–04:19）
+
+- 场景：桩 `goal`，目标正文 `把手机 App 与桌面端的状态逐项对齐`，第 4/40 轮
+- 机上看到：`#goalState=目标进行中`、`#goalText=…对齐`、`#goalAction=第 4/40 轮 · 暂停`，
+  右侧 `改目标`、`删目标`
+- 点 `暂停`：桩记 `goal action=pause -> paused`，屏上变 `目标已暂停` + `继续`
+  （截图 `docs/evidence/item5-goal-paused.jpg`）
+- 点 `继续`：桩记 `goal action=resume -> active`，屏上回到 `目标进行中` + `第 4/40 轮 · 暂停`
+  （截图 `docs/evidence/item5-goal-resumed.jpg`）
+
+三态都在真机上走了一遍，且状态行文字与宿主 `goal.status` 一一对应，不是本地猜的。
+
+### 第 6 行 · 前台提问只读（2026-11-03 04:31）
+
+- 场景：桩 `ask_open`，`userQuestions.active[0].state=open`
+- 机上看到一张卡片：`要你定一下` / `这次要不要顺带把旧包名卸掉？` /
+  `这个话题在电脑上回答` / 两个选项 `卸掉`、`留着`
+- 可点性：5 个文本控件全部没有点击标记（`adb_find` 里无 `*`），选项置灰、不可聚焦；
+  卡片上没有提交按钮，也没有任何按钮能把答案发回去
+- 回包：`GET /api/asks http=200`
+- 截图：`docs/evidence/item6-ask-open.jpg`
+
+这条的要害是「别给假按钮」：宿主还没把问题踢回模型时，手机上只能看，不能答。
+
+### 第 7 行 · 已踢回提问可答（2026-11-03 04:22–04:29）
+
+- 场景：桩 `ask_continued`，`state=continued`
+- 机上看到：`已经答过一轮` / `发版前还要不要再跑一遍真机？` / 选项 `再跑一遍`、`直接发`，
+  两个选项都带点击标记（`adb_find` 有 `*`）
+- 点 `再跑一遍`：桩立刻收到 `POST /pet-voice/api/answer`，卡片 166ms 内从屏上消失
+  （截图 `docs/evidence/item7-ask-continued.jpg` 答前、`item7-ask-answered.jpg` 答后）
+- 答完桩重启（`__answered` 复位）后，卡片按 `GET /api/asks` 重新出现，说明显隐完全跟宿主状态走
+
+### 第 8 行 · 权限审批只读卡（2026-11-03 03:42）
+
+- 场景：宿主 `dsh-user-approval` 抛出的审批请求（桩里以 ask 卡片形态给）
+- 机上看到：`需要批准` / `执行 rm -rf build 被策略拦下了` / `电脑上正在等你批准` /
+  `批准一次`（置灰、不可点）
+- 没有 `拒绝` 按钮，也没有 `这个话题在电脑上回答` 那一行：审批不是「回答问题」，
+  手机上只能看到「在等批准」，不能凭空代按
+- 截图：`docs/evidence/item8-approval.jpg`
+
+这一行仍然是缺口（宿主没给稳定的客户端答口），但**不再用「回复中」糊过去**：
+界面说得很清楚是等批准。
+
+### 第 1 行 · 空闲 / 刚发出（2026-11-03 05:00）
+
+- 场景：桩 `idle`，宿主没有在跑的轮次（`turns` 为空）
+- 机上看到：标题行没有「用时」，没有运行条，输入框可写，发送键是纸飞机
+- 发一句 `流式探针 seed24`（假流式，帧之间有间隔）之后 1 秒内：
+  - 助手侧出现 `···` 占位气泡
+  - 输入框上方状态行 `思考中 · 用时 0s`
+  - 发送键变成停止键（可中断）
+- 截图：`docs/evidence/item1-busy-status.jpg`（发出去的状态）、`item2-streaming-placeholder.jpg`（占位）
+
+空闲态的判据是「没有计时、没有运行条、能发」，不是「一定停在某一帧画面」：
+本轮验证里，一条消息发出去 600ms 内状态行就位，说明它确实在跟着真实轮次走，而不是常驻一个假状态。
+
+### 第 3 行 · 思考 / 工具过程不进转录（2026-11-03 04:41）
+
+- 场景：桩 `tools`，`/api/poll` 依次给 `start` → `reasoning{执行了命令 rm -rf build…}` →
+  `delta` → `tool{name:bash}` → `final` → `end`
+- 机上看到：
+  - `reasoning` 那段话**一个字节都没上屏**（页面上搜不到「执行了命令」）
+  - `tool` 只在状态行短暂路过（`调用工具：bash`），不进消息列表
+  - 最后只落一条助手气泡 `工具那一段不该进转录，状态行只是路过。`
+- 截图：`docs/evidence/item3-tool-status.jpg`
+
+代码侧对应 `PetTurn.handleEvent` 的 `when`：没有 `reasoning` 分支（未知事件直接丢），
+`tool` 只走 `onStatus`，没有任何一条路径把这两类帧追加成转录条目。
+
+### 桩侧顺手修的两处噪声（不影响状态口径）
+
+- `POST /api/render` 在桩里 404，客户端每渲染一条气泡就重试一次，`net.log` 十分钟里刷了 700 多条。
+  桩补了 `render:` 处理（转义后包 `<p>`），日志恢复安静。
+- 流式帧文本里带 `|` 会被 Markdown 渲染吃掉，改成无竖线的模板，截图里才读得出完整句子。
