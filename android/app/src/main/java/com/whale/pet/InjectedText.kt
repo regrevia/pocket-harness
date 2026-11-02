@@ -41,6 +41,9 @@ object InjectedText {
         "## 主要请求",
     )
 
+    /** 开头就是一对尖括号标签（`<goal_round>`、`<turn>`、`</turn>`）。 */
+    private val leadingTag = Regex("^\\s*</?[A-Za-z][\\w-]*\\s*[>/]")
+
     private val bulletPath = Regex("(?m)^[-*]\\s*`")
     private val summaryTag = Regex("</?compacted[-_ ]?summary>", RegexOption.IGNORE_CASE)
 
@@ -53,6 +56,12 @@ object InjectedText {
     /** `[视觉辅助观察 …] … [/视觉辅助观察]`：成对的一整块（跨行）。 */
     private val pluginPair = Regex(
         "\\[\\s*$PLUGIN_NAME[^\\]]*\\][\\s\\S]*?\\[\\s*/\\s*$PLUGIN_NAME[^\\]]*\\]",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /** `<dsh-intellif> … </dsh-intellif>` 这种标签形态的整块。 */
+    private val pluginTagPair = Regex(
+        "<\\s*[\\w-]*$PLUGIN_NAME[\\w-]*[^>]*>[\\s\\S]*?<\\s*/\\s*[\\w-]*$PLUGIN_NAME[\\w-]*\\s*>",
         RegexOption.IGNORE_CASE,
     )
 
@@ -122,8 +131,10 @@ object InjectedText {
         // 后台任务回执常常把整段命令一起带进来（上千字），不能按长度一刀切：认开头
         val jobHead = raw.startsWith("background job ") || raw.startsWith("job ")
         if (jobHead) {
+            // 回执有三种：还在跑、跑完、被中断。三种都是过程行
             return raw.contains("exit code") || raw.contains("finished [status:") ||
-                raw.contains("completed [status:")
+                raw.contains("completed [status:") || raw.contains("job_output") ||
+                raw.contains("running;")
         }
         if (raw.length > 600) return false
         if (raw.startsWith("(bash:") || raw.startsWith("bash:")) {
@@ -135,7 +146,8 @@ object InjectedText {
     fun stripPluginBlocks(text: CharSequence?): String {
         val raw = text?.toString().orEmpty()
         if (raw.isEmpty() || !pluginMarker.containsMatchIn(raw)) return raw.trim()
-        var out = pluginPair.replace(raw, "")
+        var out = pluginTagPair.replace(raw, "")
+        out = pluginPair.replace(out, "")
         out = pluginBracket.replace(out, "")
         out = pluginHeading.replace(out, "")
         out = pluginNotice.replace(out, "")
@@ -148,6 +160,8 @@ object InjectedText {
         if (prefixes.any { body.startsWith(it, ignoreCase = true) }) return true
         if (summaryHeads.any { body.contains(it) }) return true
         if (summaryTag.containsMatchIn(body)) return true
+        // 运行时上下文常以 `<goal_round>`、`<turn>` 这类标签开头，正文里不会这么写
+        if (leadingTag.containsMatchIn(body)) return true
         // 整条就是一块插件观察：剥完什么都不剩，就不摆出来
         if (pluginMarker.containsMatchIn(body) && stripPluginBlocks(body).isEmpty()) return true
         if (looksLikePluginDump(body)) return true
