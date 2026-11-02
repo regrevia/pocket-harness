@@ -109,7 +109,6 @@ class HistoryActivity : Activity() {
     private lateinit var sessionLabel: TextView
     private lateinit var peekLabel: TextView
     private lateinit var pressureLabel: TextView
-    private var pressurePct = -1
     private lateinit var attachBtn: android.widget.ImageView
 
     // 目标和待输入队列：和桌面端一样看得见，也能直接暂停 / 继续
@@ -1492,17 +1491,13 @@ class HistoryActivity : Activity() {
         val mine = PetSettings.chatSession(this)
         val shown = mine.ifBlank { hostId }
         // 上下文已用多少：跟桌面端顶栏同一个数；宿主没给就把这一行收起来
-        val ctx = state.optJSONObject("context")
-        val pct = ctx?.optInt("percent", -1) ?: -1
-        if (pct != pressurePct) {
-            pressurePct = pct
-            if (pct in 0..100) {
-                pressureLabel.text = "上下文已用 $pct%"
-                pressureLabel.setTextColor(getColor(if (pct >= 85) R.color.pet_accent else R.color.pet_hint))
-                pressureLabel.visibility = View.VISIBLE
-            } else {
-                pressureLabel.visibility = View.GONE
-            }
+        val pct = state.optJSONObject("context")?.optInt("percent", -1) ?: -1
+        if (pct in 0..100) {
+            pressureLabel.text = "上下文已用 $pct%"
+            pressureLabel.setTextColor(getColor(if (pct >= 85) R.color.pet_accent else R.color.pet_hint))
+            pressureLabel.visibility = View.VISIBLE
+        } else {
+            pressureLabel.visibility = View.GONE
         }
         val pk = state.optJSONObject("peek")
         val nextPeek = niceTitle(pk?.optString("title").orEmpty())
