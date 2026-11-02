@@ -237,6 +237,19 @@
                 android:orientation="horizontal" />
         </HorizontalScrollView>
 
+        <!-- 上下文已用多少：跟桌面端顶栏同一个数，宿主没给就整行不出现 -->
+        <TextView
+            android:id="@+id/chatPressure"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:paddingStart="16dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="16dp"
+            android:textColor="@color/pet_hint"
+            android:textSize="11sp"
+            android:visibility="gone" />
+
         <LinearLayout
             android:id="@+id/chatRun"
             android:layout_width="match_parent"

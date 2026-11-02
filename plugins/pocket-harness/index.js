@@ -1565,6 +1565,8 @@ function projectCacheOf(id) {
       turns: Number(rows.sessionStats?.val?.turns ?? 0) || 0,
       updatedAt: toMs(rows.sessionListMetadata?.val?.lastPromptAt) || stat.mtimeMs,
       goal: rows.goal?.val ?? null,
+      // 上下文压力（宿主投影里的那一行，桌面端顶栏也在用同一份数字）
+      pressure: rows.contextPressure?.val ?? null,
     }
   } catch {
     out = {}
@@ -6287,6 +6289,14 @@ export function apply(ctx, config) {
           // current 只用于界面展示（用户最近在用的那只，已排除专属会话），**不参与派发**；
           // 派发落点看 dispatchTarget，它恒等于 pet-session.json 里那只。
           current,
+          // 上下文已用多少：跟桌面端顶栏同一个数，拿不到就是 null（App 不显示这一行）
+          context: (() => {
+            const p = current ? projectCacheOf(current.id).pressure : null
+            const window = Number(p?.contextWindow) || 0
+            const used = Number(p?.pressureTokens) || Number(p?.surfaceTokens) || 0
+            if (!(window > 0) || !(used > 0)) return null
+            return { percent: Math.min(100, Math.round((used / window) * 100)), used, window }
+          })(),
           dispatchTarget: petNow.sessionId || null,
           // 5 分钟内旁听过别的会话时给个标题，手机在对话页标题下显示一行；过期就是 null。
           peek: peekInfoOf(petNow.sessionId) || null,
