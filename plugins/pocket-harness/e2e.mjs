@@ -42,7 +42,7 @@ const log = (...a) => console.log(`[+${at()}ms]`, ...a)
 
 function fail(msg) {
   console.error(`\nFAIL: ${msg}`)
-  process.exit(1)
+  process.exitCode = 1
 }
 
 const frames = []
@@ -206,4 +206,4 @@ if (!deltas.length && !final) fail('没有 delta 也没有 final：宿主事件�
 if (firstDeltaMs == null) fail('firstDeltaMs 为空')
 
 log(`OK：${deltas.length} 个 delta，首字 ${firstDeltaMs}ms${final ? '，兜底 final 也到了' : ''}`)
-process.exit(0)
+process.exitCode = 0

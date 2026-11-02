@@ -30,7 +30,7 @@ if (savedPanelFiles.size && process.env.PV_SELFTEST_ALLOW_REAL !== '1') {
       '跑法：HOME=/tmp/pvtest node plugins/pocket-harness/selftest.mjs\n' +
       '确实要在当前 HOME 上跑，就先设 PV_SELFTEST_ALLOW_REAL=1。',
   )
-  process.exit(2)
+  process.exitCode = 2
 }
 const restorePanelFiles = () => {
   for (const [name, buf] of savedPanelFiles) {

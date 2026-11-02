@@ -35,7 +35,7 @@ const headers = cookie ? { cookie } : {}
 
 const fail = (msg) => {
   console.error(`✗ ${msg}`)
-  process.exit(1)
+  process.exitCode = 1
 }
 
 if (!TK) fail('拿不到 token：先在宿主上跑一次插件，或传 PV_TOKEN')
