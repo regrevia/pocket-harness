@@ -52,7 +52,7 @@
 ## 验收记录
 
 只在真机上看到对应状态才算过。场景都用 `192.168.51.19:18765` 的桩（stub）切换，
-设备 `15ca9736`，装的是 `com.pocketharness.app` 0.9.148（versionCode 218）之后的构建。
+设备 `15ca9736`，装的是 `com.pocketharness.app` 0.9.149（versionCode 219）。
 
 ### 第 10 行 · 排队落点（2026-11-03 02:21）
 
@@ -199,3 +199,16 @@ App 只是一个显示面，数字完全跟着宿主走，不在本地估算。
   `hintOnce("配对失效了 · 打开鲸灵重新扫码")` 是配对上失效时的一次性提示，不是陈旧气泡。
 - **`pet_history.xml`**：只有 `PetHistory.kt` 引用的本地转录缓存，没有布局、没有页面入口，
   不参与上屏，不需要清理。
+
+### 会话列表与图片落点（2026-11-03 13:17，0.9.149 / 219）
+
+- 会话列表走 `GET /api/sessions?projectId=ef76a38a-8d4f-40e0-8e7c-f05734c1178a&limit=100`：
+  真机上返回 46 条、`hasMore:false`。手机选择器连滑 8 次到底，最后一行是 `在的`（meta `10-24 16:05`），
+  往上依次 `鲸灵在线` ×3、`AI助手自我介绍`… 与接口返回的最旧几条一一对上，没有截断。
+  截图：`docs/evidence/item11-picker-46-rows.jpg`
+- 不带 `projectId` 的全局 `/api/sessions` 只有 50 条窗口，Pet 的行会落在窗口外——
+  这正是以前「Pet 下只看到 pet voice」的成因，App 现在必须带 `projectId` 取。
+- 图片落点：在 `Pet voice`（`1ca8e13b-5b29-4020-9caa-2c580cb5cb6f`）里从相册选一张照片直接发送，
+  宿主 `turn.log` 记的是 `dispatch status=200 … chars=0 want=1ca8e13b used=1ca8e13b`，
+  宿主会话转录里出现 `IMG_20261030_162054`，`/api/sessions` 仍是 46 条、没有新建空白会话。
+  截图：`docs/evidence/item12-image-stays-in-session.jpg`
