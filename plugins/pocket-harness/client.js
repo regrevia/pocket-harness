@@ -220,6 +220,7 @@ window.__ModuleLoader__.load({
       server: '服务器还没连上。',
       lan: '手机得和这台电脑同一个 Wi-Fi，电脑防火墙放行才连得上。',
       domain: '填好域名，二维码就出来。',
+      relay: '填好中转地址和密钥，二维码就出来。',
     }
 
     /** 每种方案要用户先准备好什么，只有一行。 */
@@ -227,6 +228,7 @@ window.__ModuleLoader__.load({
       server: '要一台能 SSH 的服务器',
       lan: '手机和电脑连同一个 Wi-Fi',
       domain: '要已经能打开的域名',
+      relay: '要一串中转地址和密钥',
     }
 
     const VOICES = [
@@ -305,6 +307,10 @@ window.__ModuleLoader__.load({
       const [pubDraft, setPubDraft] = React.useState(null)
       const [pubBusy, setPubBusy] = React.useState(false)
       const [pubError, setPubError] = React.useState('')
+      const [relay, setRelay] = React.useState(null)
+      const [relayDraft, setRelayDraft] = React.useState({ slug: '', secret: '' })
+      const [relayBusy, setRelayBusy] = React.useState(false)
+      const [relayError, setRelayError] = React.useState('')
 
       const load = React.useCallback(async () => {
         try {
@@ -337,9 +343,20 @@ window.__ModuleLoader__.load({
         }
       }, [])
 
+      const loadRelay = React.useCallback(async () => {
+        try {
+          const data = await request('/relay')
+          setRelay(data)
+          setRelayDraft((d) => ({ ...d, slug: String(data?.slug ?? '') }))
+        } catch {
+          /* 拿不到就把这块留空 */
+        }
+      }, [])
+
       React.useEffect(() => {
         loadPub()
-      }, [loadPub])
+        loadRelay()
+      }, [loadPub, loadRelay])
 
       // 二维码只跟「已经能用的地址」走：面板不给还没填好的连法画码。
       const pairingUrl = state?.pairingUrl ?? ''
@@ -561,6 +578,85 @@ window.__ModuleLoader__.load({
         ),
       )
 
+      /* ---------------- 我们的中转：选了才展开 ---------------- */
+
+      const relayField = (key) => (value) => setRelayDraft((d) => ({ ...d, [key]: value }))
+
+      const postRelay = async (patch) => {
+        try {
+          const data = await request('/relay', patch)
+          setRelay(data)
+          setRelayDraft({ slug: String(data?.slug ?? ''), secret: '' })
+          setRelayError('')
+          await load()
+          return data
+        } catch (e) {
+          setRelayError(String(e?.message || '存不进去'))
+          return null
+        }
+      }
+
+      const saveRelay = async () => {
+        const slug = String(relayDraft.slug || '').trim().toLowerCase()
+        if (!/^[a-z0-9][a-z0-9-]{1,31}$/.test(slug)) return setRelayError('地址用 2–32 位小写字母、数字或 -')
+        const secret = String(relayDraft.secret || '').trim()
+        setRelayBusy(true)
+        await postRelay(secret ? { enabled: true, slug, secret } : { enabled: true, slug })
+        setRelayBusy(false)
+      }
+
+      const dropRelay = async () => {
+        setRelayBusy(true)
+        await postRelay({ enabled: false })
+        setRelayBusy(false)
+      }
+
+      const relayStatus = !relay
+        ? ''
+        : relay.connected
+          ? '正在中转'
+          : relay.lastError
+            ? String(relay.lastError)
+            : relay.enabled
+              ? '正在连…'
+              : ''
+
+      const relayInline = h(
+        'div',
+        { style: { ...S.mode(false), flexDirection: 'column', alignItems: 'stretch', gap: 8, cursor: 'default' } },
+        h(
+          'div',
+          { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+          h('span', { style: S.label }, '地址'),
+          h(Input, {
+            value: relayDraft.slug ?? '',
+            onChange: relayField('slug'),
+            onCommit: saveRelay,
+            placeholder: '规定给你的那串',
+            width: '100%',
+          }),
+        ),
+        h(
+          'div',
+          { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+          h('span', { style: S.label }, '密钥'),
+          h(Input, {
+            value: relayDraft.secret ?? '',
+            onChange: relayField('secret'),
+            onCommit: saveRelay,
+            placeholder: relay?.hasSecret ? '已保存，要换才重填' : '规定给你的那串',
+            width: '100%',
+          }),
+        ),
+        h(
+          'div',
+          { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+          h('button', { style: S.button, disabled: relayBusy, onClick: saveRelay }, relayBusy ? '正在连…' : '保存并连接'),
+          relay?.enabled ? h('button', { style: S.button, disabled: relayBusy, onClick: dropRelay }, '断开') : null,
+          h('span', { style: { ...S.hint, flex: 1, minWidth: 0 } }, relayError || relayStatus),
+        ),
+      )
+
       /* ---------------- 连上手机：三种方案，选一个填好就出二维码 ---------------- */
 
       const pairSection = h(
@@ -610,6 +706,7 @@ window.__ModuleLoader__.load({
               )
             : null,
           draft.mode === 'server' ? pubInline : null,
+          draft.mode === 'relay' ? relayInline : null,
         ),
         qr
           ? h(

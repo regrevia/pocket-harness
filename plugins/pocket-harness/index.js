@@ -59,10 +59,11 @@ try {
 } catch {
   zstdDecompressSync = null
 }
-import { getPanelConfig, normalizeTransport, panelState, qrSvg, setPanelConfig, removeDevice, clearDevices, touchDevice } from './panel.mjs?v=20261027a'
+import { getPanelConfig, normalizeTransport, panelState, qrSvg, setPanelConfig, removeDevice, clearDevices, touchDevice } from './panel.mjs?v=20261103a'
 import { listLocalVoices, localTtsReady, normalizeTtsProvider, pickDefaultLocalVoice, synthesizeHttp, synthesizeLocal } from './tts/providers.mjs?v=20261027a'
 import { connectPublic, disconnectPublic, publicState, setPublicConfig, stopPublic } from './public.mjs?v=20261027a'
 import { startLan, lanState, stopLan } from './lan.mjs?v=20261027a'
+import { getRelayConfig, relayBase, relayState, setRelayConfig, startRelay, stopRelay } from './relay.mjs?v=20261103a'
 
 /** 插件名，必须等于 bundle patch 里的插入 id。 */
 export const name = 'pocket-harness'
@@ -458,6 +459,8 @@ const API_ROUTES = [
   'selfcheck',
   'link',
   'pair',
+  // 「经我们的中转」：面板里配 slug + 密钥，插件自己往服务器拉 WebSocket
+  'relay',
   // 手机语音指令：列项目 / 切项目 / 一句话意图解析（只影响专属会话）
   'workspaces',
   'switch',
@@ -3292,6 +3295,12 @@ function probeTunnel(base) {
  * 所以保留 tunnel 地址 + `alive:false` + `note`，由页面标黄提示重新起隧道。
  */
 async function pairInfo(origin) {
+  // 只有面板上选了「我们的中转」才走这条：它既有公网地址，也不要求对方有自己的服务器账号。
+  // 选别的连法时保持原行为，中转配置留着但不顶替正在用的那一条。
+  const relayCfg = getRelayConfig()
+  if (relayCfg.enabled && relayCfg.slug && getPanelConfig().mode === 'relay') {
+    return { publicBase: relayBase(relayCfg), source: 'relay', alive: relayState().connected }
+  }
   let raw = ''
   try {
     raw = readFileSync(TUNNEL_URL_PATH, 'utf8').trim()
@@ -6002,7 +6011,7 @@ export function apply(ctx, config) {
     const method = String(req.method ?? 'GET').toUpperCase()
     const origin = ctx.webServer.getOrigin?.() ?? ''
     const snapshot = async () => ({
-      ...(await panelState({ origin, pairing: await pairInfo(origin) })),
+      ...(await panelState({ origin, pairing: await pairInfo(origin), relay: relayState() })),
       pluginVersion: PLUGIN_VERSION,
       // 手机上那几件非刚需的活，开关在桌面端面板里；App 只照这个值做，不自己留一份
       features: (() => {
@@ -6028,6 +6037,37 @@ export function apply(ctx, config) {
         try {
         // 「经自己的服务器转发」：配置只存这台电脑，仓库里没有任何默认服务器。
         if (route === 'public' && method === 'GET') return sendJson(res, 200, publicState())
+        // 「经我们的中转」：slug + 密钥只存这台电脑。
+        if (route === 'relay' && method === 'GET') return sendJson(res, 200, relayState())
+
+        if (route === 'relay' && method === 'POST') {
+          const raw = String((await readBody(req, 16 * 1024)) ?? '')
+          let patch = {}
+          try {
+            patch = JSON.parse(raw || '{}')
+          } catch {
+            return sendJson(res, 400, { ok: false, error: 'bad json' })
+          }
+          const next = setRelayConfig(patch)
+          let originUrl = null
+          try {
+            originUrl = new URL(origin || 'http://127.0.0.1:1')
+          } catch {
+            originUrl = null
+          }
+          if (next.enabled && originUrl) {
+            startRelay({ port: originUrl.port || 80 })
+            try {
+              setPanelConfig({ mode: 'relay' })
+            } catch {
+              /* 地址写不进去也让中转保持连着，面板会显示状态 */
+            }
+          } else {
+            stopRelay()
+          }
+          return sendJson(res, 200, relayState())
+        }
+
 
         if (route === 'public' && method === 'POST') {
           const raw = String((await readBody(req, 16 * 1024)) ?? '')
@@ -6283,6 +6323,7 @@ export function apply(ctx, config) {
           // 绝不回显完整 token：只给前 8 位，让用户能比对「现在生效的是哪一把」。
           tokenHint: currentToken().slice(0, 8),
           linkHint: `在电脑上执行 cat ${TOKEN_PATH} 可查看完整配对链接里的 token`,
+          relay: relayState(),
           projects,
           presets,
           sessions: sessions.slice(0, 20).map(enrich),
@@ -7023,7 +7064,7 @@ export function apply(ctx, config) {
       ...API_ROUTES.map((route) =>
         ctx.webServer.register({ kind: 'exact', path: `${API}/${route}`, handler: safeHandler(apiHandler) }),
       ),
-      ...['state', 'rotate-token', 'unbind', 'qr.svg', 'public', 'public/connect', 'public/disconnect'].map((route2) =>
+      ...['state', 'rotate-token', 'unbind', 'qr.svg', 'public', 'public/connect', 'public/disconnect', 'relay'].map((route2) =>
         ctx.webServer.register({ kind: 'exact', path: `${PANEL}/${route2}`, handler: safeHandler(panelHandler) }),
       ),
       // 下载路由：裸路径明确 404；文件名的 exact 由 ensureDownloadRoute 慢慢补。
@@ -7059,12 +7100,28 @@ export function apply(ctx, config) {
       /* 拿不到宿主端口 */
     }
 
+    // 「经我们的中转」：配过就自己连上；连不上会自己退避重试，不影响别的连法。
+    try {
+      const relayCfg = getRelayConfig()
+      if (relayCfg.enabled && relayCfg.slug && relayCfg.secret) {
+        const originUrl = new URL(ctx.webServer.getOrigin?.() ?? '')
+        startRelay({ port: originUrl.port || 80 })
+      }
+    } catch {
+      /* 没配过 */
+    }
+
     LOG(`路由已挂载：${BASE}/（token 文件 ${TOKEN_PATH}）`)
     return () => {
       try {
         stopPublic()
       } catch {
         /* 没起过隧道 */
+      }
+      try {
+        stopRelay()
+      } catch {
+        /* 没起过中转连接 */
       }
       try {
         stopLan()

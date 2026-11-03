@@ -1,0 +1,33 @@
+{
+	email admin@regrevia.com
+	acme_ca https://acme-v02.api.letsencrypt.org/directory
+}
+
+# 公共入口：/r/<slug>/... 和 /relay/* 走多租户中转（8090），其余仍是我们自己这条链（8443）
+(relay_routes) {
+	handle /r/* {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle /relay/* {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle {
+		reverse_proxy 127.0.0.1:8443 {
+			transport http {
+				tls
+				tls_insecure_skip_verify
+			}
+		}
+	}
+}
+
+:80 {
+	encode gzip
+	import relay_routes
+}
+
+# 阶段 2：备案通过后启用域名块（未备案时 DNSPod 会把域名 302 到 webblock.html）
+pet.regrevia.com, pet.regrevia.cn {
+	encode gzip
+	import relay_routes
+}

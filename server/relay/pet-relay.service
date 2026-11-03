@@ -1,0 +1,21 @@
+[Unit]
+Description=Pet relay (multi-tenant HTTP over WebSocket)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/pet-relay
+Environment=RELAY_PORT=8090
+Environment=RELAY_HOST=127.0.0.1
+Environment=RELAY_TENANTS=/etc/pet-relay/tenants.json
+ExecStart=/usr/bin/node /opt/pet-relay/server.mjs
+Restart=always
+RestartSec=2
+User=root
+NoNewPrivileges=true
+PrivateTmp=true
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

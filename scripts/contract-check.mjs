@@ -240,9 +240,9 @@ for (const key of NEEDED_KEYS) {
 {
   const pair = await json('/api/pair', auth)
   const body = pair.body ?? {}
-  const tri = ['tunnel', 'lan', 'local'].includes(body.source)
+  const tri = ['tunnel', 'lan', 'local', 'relay'].includes(body.source)
   check(
-    '/api/pair → publicBase + source 三档之一 + 无 token',
+    '/api/pair → publicBase + source 四档之一 + 无 token',
     pair.status === 200 &&
       body.ok === true &&
       typeof body.publicBase === 'string' &&

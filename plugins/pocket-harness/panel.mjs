@@ -28,7 +28,7 @@ const DEVICES_PATH = join(PANEL_DIR, 'devices.json')
 const CONFIG_PATH = join(PANEL_DIR, 'panel.json')
 
 const PLATFORMS = ['android', 'ios', 'web', 'unknown']
-const MODES = ['server', 'lan', 'domain']
+const MODES = ['server', 'lan', 'domain', 'relay']
 const MAXWORDS_LEVELS = ['短', '中', '长']
 const DEFAULT_CONFIG = {
   // 默认局域网：开源版不预设任何作者侧基础设施；'server' 只是本人体验用的可删档位
@@ -360,7 +360,7 @@ export function setPanelConfig(patch) {
 
   if (input.mode !== undefined) {
     const mode = String(input.mode ?? '').trim()
-    if (!MODES.includes(mode)) throw new Error('模式只能选服务器、局域网或自建域名')
+    if (!MODES.includes(mode)) throw new Error('模式只能选服务器、局域网、自建域名或我们的中转')
     next.mode = mode
   }
   if (input.customUrl !== undefined) {
@@ -465,7 +465,7 @@ function pairingToken() {
   }
 }
 
-export function panelState({ origin, pairing } = {}) {
+export function panelState({ origin, pairing, relay } = {}) {
   const config = readPanelConfig()
   const source = pairing && typeof pairing === 'object' ? pairing : {}
   // 「自己的服务器」两种来源：面板里连着的 ssh 反向隧道（地址是 ssh 那台机器的公网口），
@@ -480,6 +480,8 @@ export function panelState({ origin, pairing } = {}) {
     },
     { id: 'lan', label: '同一个 Wi-Fi', url: lanBase(origin) },
     { id: 'domain', label: '自己的域名', url: config.customUrl },
+    // 我们的中转：地址由插件按 slug 算，不用手填；没配 slug 就是空，选项点不动。
+    { id: 'relay', label: '我们的中转', url: String(relay?.base ?? '').trim() },
   ]
   const base = normalizeBase(modes.find((item) => item.id === config.mode)?.url)
   // 配对走 ?k=：pageHandler 校验后 303 下发 cookie，和 /panel/link 的链接同一形状。

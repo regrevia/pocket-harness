@@ -55,3 +55,50 @@
 - [ ] Caddy 按 `/pet-voice/<owner>/` 分流到 `127.0.0.1:844<x>`
 - [ ] 上传侧压缩与体积上限（复用到 App 现有 `uploadShots` 压缩路径）
 - [ ] 一键安装脚本：对方 Mac 上装 launchd `ssh -R`
+
+## 7. 已实现（2026-11-04）
+
+按第 2 节做的第一版，没有走 ssh，也没有按端口分：**每户一条出站 WS + 每户一个密钥**。
+
+### 7.1 服务端（42.193.189.240）
+
+- `/opt/pet-relay/server.mjs`，systemd `pet-relay.service`，监听 `127.0.0.1:8090`。
+- `GET /relay/ws?slug=&secret=`：升级成 WebSocket，就是这台电脑的出口；同一 slug 再连会挤掉旧连接（4001）。
+- `GET|POST|… /r/<slug>/<原路径>`：拼成 HTTP 帧压给对应的 WS，等插件回帧再回给调用方。
+  未知 slug 404，插件没连 503，请求体超 12 MB 413，30 s 没回 502。
+- `GET /relay/health`：`{ok,tenants,online[],pending,uptime}`。
+- 租户 `{slug,secret,note,createdAt}` 存 `/etc/pet-relay/tenants.json`（0600，写盘 tmp+rename）。
+- Caddy `handle /r/*` 与 `handle /relay/*` → `127.0.0.1:8090`，其余仍原样给 `8443`；用 `handle` 不剥前缀，
+  所以插件的路径校验看到的是完整 `/r/<slug>/pet-voice/...`。
+
+租户管理（服务器上）：
+
+```bash
+node /opt/pet-relay/admin.mjs list
+node /opt/pet-relay/admin.mjs add <slug> "备注"   # 打印中转地址与密钥
+node /opt/pet-relay/admin.mjs del <slug>         # 换密钥＝先删再加
+```
+
+### 7.2 插件侧（这台电脑）
+
+- `relay.mjs`：配置 `~/.dsh/pet-voice/relay.json`（0600），开机按配置连 `ws://42.193.189.240/relay/ws`；
+  收到帧在本地 `127.0.0.1:<宿主端口>` 复跑一遍同样的 HTTP 请求（带原 header，去掉逐跳头），
+  回帧给服务器。断线 2 s 起、最多 30 s 退避重连；25 s 一次 ping/pong。
+- 面板「连上手机」多一项 **我们的中转**：填地址（slug）与密钥 → 保存并连接；选中它才用这条路。
+- 地址由插件算：`http://42.193.189.240/r/<slug>/pet-voice/`，配对链接仍是这个地址 + `?k=<令牌>`，
+  `publicBase` 里不含令牌（`source: 'relay'`）。没选中转时完全不影响服务器/局域网/域名三种老路。
+- 路径门禁不因中转放宽：`allowed()` 复用 `classifyPublicPath`，只放 `/pet-voice/*`；
+  `panel/*` 这类本机接口在中转下依旧 403。
+
+### 7.3 实测
+
+- 真插件（非 stub）连上：`connected:true` 在 2.5 s 内，`relay.json` 被写成 0600。
+- 公网 `GET http://42.193.189.240/r/regrevia/pet-voice/api/state` → 本地服务的响应原样回来。
+- 公网 `/r/regrevia/panel/state` → 403；未知 slug → 404；插件掉线 → 503。
+- 老链 `/pet-voice/…` 未改动，已配对的手机照旧。
+
+### 7.4 还没做
+
+- 配额/限速：单请求 12 MB 是硬顶，但没按户计速；图片仍建议先压到 1600px/q80。
+- `ws://`：443 没开（备案未过），备案下来换 `wss://` 只改 `relay.json` 的 `wsUrl` 与 Caddy 一行。
+- 密钥轮换没有 UI，走 `admin.mjs del` + `add`。
