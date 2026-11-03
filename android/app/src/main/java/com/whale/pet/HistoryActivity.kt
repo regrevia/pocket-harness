@@ -1512,6 +1512,8 @@ class HistoryActivity : Activity() {
         }
         // 顶上两行必须是一对：项目名从这只会话自己的 workspace 推，不再拿独立钉的项目名凑
         val projTitle = projectTitleOf(state, shown)
+        // 会话列表要按项目查，这里把当前会话的项目 id 留一份（state 里没有就沿用上次的）
+        projectIdOf(state, shown).let { if (it.isNotBlank()) liveProjectId = it }
         if (projTitle.isNotBlank() && projTitle != liveProjectTitle) {
             liveProjectTitle = projTitle
             if (projTitle != PetSettings.pinnedTitle(this)) PetSettings.savePinnedTitle(this, projTitle)
@@ -1561,6 +1563,18 @@ class HistoryActivity : Activity() {
 
     /** 这只会话属于哪个项目（宿主给了 projectId，项目表里查名字）。 */
     private fun projectTitleOf(state: JSONObject, id: String): String {
+        val pid = projectIdOf(state, id)
+        if (pid.isBlank()) return ""
+        val projects = state.optJSONArray("projects") ?: return ""
+        for (i in 0 until projects.length()) {
+            val p = projects.optJSONObject(i) ?: continue
+            if (p.optString("id") == pid) return p.optString("title").orEmpty()
+        }
+        return ""
+    }
+
+    /** 会话 id 属于哪个项目 id；state 的 current 和最近会话表里都找不到就回空串。 */
+    private fun projectIdOf(state: JSONObject, id: String): String {
         if (id.isBlank()) return ""
         var pid = ""
         val cur = state.optJSONObject("current")
@@ -1572,13 +1586,7 @@ class HistoryActivity : Activity() {
                 if (o.optString("id") == id) { pid = o.optString("projectId").orEmpty(); break }
             }
         }
-        if (pid.isBlank()) return ""
-        val projects = state.optJSONArray("projects") ?: return ""
-        for (i in 0 until projects.length()) {
-            val p = projects.optJSONObject(i) ?: continue
-            if (p.optString("id") == pid) return p.optString("title").orEmpty()
-        }
-        return ""
+        return pid
     }
 
     /** 会话表里没这只（多半太老、掉出了最近列表）：单独问一句它的名字。 */
@@ -3013,9 +3021,13 @@ class HistoryActivity : Activity() {
         pickerAdapter.notifyDataSetChanged()
         val client = PetClient { PetSettings.load(this) }
         val cur = PetSettings.chatSession(this)
+        // 按项目查：宿主的会话接口不带 projectId 时只回最近 50 条，项目里的老会话会被截掉。
+        val wantProj = pickerProjectId.ifBlank { liveProjectId }
         Thread({
             val res = try {
-                client.get("sessions", mapOf("limit" to "100"))
+                val q = linkedMapOf("limit" to "100")
+                if (wantProj.isNotBlank()) q["projectId"] = wantProj
+                client.get("sessions", q)
             } catch (_: Exception) {
                 null
             }
@@ -3042,6 +3054,8 @@ class HistoryActivity : Activity() {
             // 项目优先级：钉住的 > 当前会话所属的 > 列表里钉过的 > 全部（都不认识时才放宽）
             var wsId = pickerProjectId
             if (wsId.isBlank()) wsId = all.firstOrNull { it.id == cur }?.proj.orEmpty()
+            // 按项目查回来的就是这一只项目的：当前会话掉出了列表（太老）时别退回全部
+            if (wsId.isBlank()) wsId = wantProj
             if (wsId.isBlank()) wsId = projects.firstOrNull { it.pinned }?.id.orEmpty()
             val out = if (wsId.isBlank()) all else all.filter { it.proj == wsId }
             val wsTitle = projects.firstOrNull { it.id == wsId }?.title.orEmpty()
@@ -3097,6 +3111,13 @@ class HistoryActivity : Activity() {
     }
 
     private var pickerProjectId = ""
+    /**
+     * 当前这只会话属于哪个项目（state 里 current/sessions 的 projectId）。
+     *
+     * 会话列表必须按项目向宿主查：宿主 /api/sessions 不带 projectId 时只给最近 50 条，
+     * 项目里的老会话全被截掉，手机上就变成「这个项目只有一只对话」。
+     */
+    private var liveProjectId = ""
 
     private fun onPickerPick(pos: Int) {
         val row = pickerRows.getOrNull(pos) ?: return
