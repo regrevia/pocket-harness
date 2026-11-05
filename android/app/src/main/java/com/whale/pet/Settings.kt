@@ -219,7 +219,8 @@ object PetSettings {
      *   https://xxx.trycloudflare.com/pet-voice
      *   https://xxx.trycloudflare.com/pet-voice/
      *   http://192.168.1.5:52356/pet-voice/
-     * 统一成 …/pet-voice/。
+     *   http://42.193.189.240/r/<slug>/pet-voice/   ← 我们的中转，/r/<slug> 要保留
+     * 统一成 …/pet-voice/（有中转前缀时保留前缀）。
      */
     fun normalizeBase(raw: String): String {
         var s = raw.trim()
@@ -235,7 +236,11 @@ object PetSettings {
         // 明文 http 只允许本机/局域网：公网 http 会把 token 和整段对话内容暴露在链路上。
         if (scheme != "https" && !plaintextHostAllowed(authority)) return ""
         var path = (uri.path ?: "").trimEnd('/')
-        if (!path.endsWith("/pet-voice")) path = "/pet-voice"
+        // 中转地址是 /r/<slug>/pet-voice/：前缀要留着，否则手机绕过中转打老链。
+        // 其余写法（裸域名、带错路径）仍旧归一到 /pet-voice/。
+        val segs = path.trim('/').split('/').filter { it.isNotEmpty() }
+        val prefix = if (segs.size >= 2 && segs[0] == "r") "/r/${segs[1]}" else ""
+        if (!path.endsWith("/pet-voice")) path = "$prefix/pet-voice"
         return "$scheme://$authority$path/"
     }
 

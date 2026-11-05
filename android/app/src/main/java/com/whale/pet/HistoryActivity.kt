@@ -260,6 +260,8 @@ class HistoryActivity : Activity() {
         data class Action(val text: String) : PickerRow()
         /** 「新建对话」：就在当前项目里开一只新的。 */
         data class NewChat(val text: String) : PickerRow()
+        /** 这一趟没连上宿主：点一下重来，别显示成「这个项目没有会话」。 */
+        data class Retry(val text: String) : PickerRow()
     }
 
     /** 待发队列把某句补发成功后，这儿把会话再拉一遍，用户能直接看到回复。 */
@@ -2960,7 +2962,8 @@ class HistoryActivity : Activity() {
                     )
                 }
             }
-            val pinnedTitle = res?.json?.optJSONObject("pinned")?.optString("title").orEmpty()
+            // 「钉住的项目」是 workspaces 里带 pinned 标记的那一行，宿主没有顶层 pinned 对象
+            val pinnedTitle = out.firstOrNull { it.pinned }?.title.orEmpty()
             runOnUiThread {
                 pickerLoading = false
                 projects = out
@@ -2991,9 +2994,27 @@ class HistoryActivity : Activity() {
         val client = PetClient { PetSettings.load(this) }
         Thread({
             val res = try { client.workspaces() } catch (_: Exception) { null }
-            val pinned = res?.json?.optJSONObject("pinned")
-            val id = pinned?.optString("id").orEmpty()
-            val title = pinned?.optString("title").orEmpty()
+            // 宿主回的是 workspaces 数组，「钉住的项目」只是其中一行的 pinned 标记。
+            // 以前读顶层的 pinned 对象，永远取不到，于是就靠猜项目去查了会话。
+            var id = ""
+            var title = ""
+            val wsArr = res?.json?.optJSONArray("workspaces")
+            if (wsArr != null) {
+                for (i in 0 until wsArr.length()) {
+                    val o = wsArr.optJSONObject(i) ?: continue
+                    if (o.optBoolean("pinned")) {
+                        id = o.optString("id")
+                        title = o.optString("title")
+                        break
+                    }
+                }
+            }
+            if (id.isBlank()) {
+                // 老宿主可能有顶层 pinned 对象，兜一下
+                val pinned = res?.json?.optJSONObject("pinned")
+                id = pinned?.optString("id").orEmpty()
+                title = pinned?.optString("title").orEmpty()
+            }
             runOnUiThread {
                 if (!isFinishing && !isDestroyed) {
                     if (id.isNotBlank()) pickerProjectId = id
@@ -3024,33 +3045,49 @@ class HistoryActivity : Activity() {
         // 按项目查：宿主的会话接口不带 projectId 时只回最近 50 条，项目里的老会话会被截掉。
         val wantProj = pickerProjectId.ifBlank { liveProjectId }
         Thread({
-            val res = try {
-                val q = linkedMapOf("limit" to "100")
-                if (wantProj.isNotBlank()) q["projectId"] = wantProj
-                client.get("sessions", q)
-            } catch (_: Exception) {
-                null
+            // 返回 (这一趟的会话, 这一趟是否真的连上了宿主)。
+            // 连不上和「项目里没有会话」在界面上必须分开：前者要能点一下重来。
+            fun fetch(proj: String): Pair<ArrayList<Sess>, Boolean> {
+                val res = try {
+                    val q = linkedMapOf("limit" to "100")
+                    if (proj.isNotBlank()) q["projectId"] = proj
+                    client.get("sessions", q)
+                } catch (_: Exception) {
+                    null
+                }
+                val list = ArrayList<Sess>()
+                // 宿主返回的是 sessions（旧字段 rows 兜底）
+                val arr = res?.json?.optJSONArray("sessions") ?: res?.json?.optJSONArray("rows")
+                if (arr != null) {
+                    for (i in 0 until arr.length()) {
+                        val o = arr.optJSONObject(i) ?: continue
+                        val id = o.optString("id")
+                        if (id.isBlank()) continue
+                        list.add(
+                            Sess(
+                                id = id,
+                                title = niceTitle(o.optString("title")).ifBlank { "未命名对话" },
+                                at = o.optLong("updatedAt"),
+                                running = o.optBoolean("running"),
+                                proj = o.optString("projectId"),
+                            ),
+                        )
+                    }
+                }
+                list.sortByDescending { it.at }
+                val ok = res != null && res.json?.optBoolean("ok", true) != false
+                return list to ok
             }
-            val all = ArrayList<Sess>()
-            // 宿主返回的是 sessions（旧字段 rows 兜底）
-            val arr = res?.json?.optJSONArray("sessions") ?: res?.json?.optJSONArray("rows")
-            if (arr != null) {
-                for (i in 0 until arr.length()) {
-                    val o = arr.optJSONObject(i) ?: continue
-                    val id = o.optString("id")
-                    if (id.isBlank()) continue
-                    all.add(
-                        Sess(
-                            id = id,
-                            title = niceTitle(o.optString("title")).ifBlank { "未命名对话" },
-                            at = o.optLong("updatedAt"),
-                            running = o.optBoolean("running"),
-                            proj = o.optString("projectId"),
-                        ),
-                    )
+            var (all, ok) = fetch(wantProj)
+            // 按项目查回来是空的、但确实连上了：可能宿主的项目归属这一趟没建好，
+            // 退回全局再查一遍、按项目过滤，别把「查不到」当成「这个项目没有会话」。
+            if (ok && all.isEmpty() && wantProj.isNotBlank()) {
+                val (global, globalOk) = fetch("")
+                if (global.isNotEmpty()) {
+                    all = global
+                    ok = globalOk
                 }
             }
-            all.sortByDescending { it.at }
             // 项目优先级：钉住的 > 当前会话所属的 > 列表里钉过的 > 全部（都不认识时才放宽）
             var wsId = pickerProjectId
             if (wsId.isBlank()) wsId = all.firstOrNull { it.id == cur }?.proj.orEmpty()
@@ -3079,10 +3116,13 @@ class HistoryActivity : Activity() {
                 pickerTitle.text = pickerProject.ifBlank { PetSettings.pinnedTitle(this) }.ifBlank { "会话" }
                 pickerRows.clear()
                 pickerRows.add(PickerRow.NewChat("+ 新建对话"))
-                if (out.isEmpty()) {
-                    pickerRows.add(PickerRow.Head(if (wsId.isBlank()) "还没有对话" else "这个项目还没有对话"))
-                } else {
+                if (out.isNotEmpty()) {
                     out.forEach { pickerRows.add(PickerRow.SessRow(it)) }
+                } else if (!ok) {
+                    // 这一趟根本没连上：要让一步就能重来，不能显示成「这个项目没有会话」
+                    pickerRows.add(PickerRow.Retry("没连上电脑，点一下重试"))
+                } else {
+                    pickerRows.add(PickerRow.Head(if (wsId.isBlank()) "还没有对话" else "这个项目还没有对话"))
                 }
                 pickerAdapter.notifyDataSetChanged()
                 sizePicker()
@@ -3138,6 +3178,7 @@ class HistoryActivity : Activity() {
                 newChat()
             }
             is PickerRow.Action -> toast("新建项目在电脑上做")
+            is PickerRow.Retry -> loadSessions()
             else -> {}
         }
     }
@@ -3806,6 +3847,10 @@ class HistoryActivity : Activity() {
                     if (current) v.setBackgroundColor(getColor(R.color.pet_hint_bg))
                 }
                 is PickerRow.Action -> {
+                    title.text = row.text
+                    title.setTextColor(getColor(R.color.pet_accent))
+                }
+                is PickerRow.Retry -> {
                     title.text = row.text
                     title.setTextColor(getColor(R.color.pet_accent))
                 }

@@ -2003,7 +2003,13 @@ async function browseSessions(ctx, query, liveTurns, opts = {}) {
   const projectId = String(query?.projectId ?? '').trim()
   const limit = clampLimit(query?.limit)
   const before = toMs(query?.before)
-  const byPath = projectIdByPath(workspaceRows(ctx))
+  let byPath = projectIdByPath(workspaceRows(ctx))
+  if (projectId && byPath.size === 0) {
+    // workspaceRegistry 这一瞬还没可用时映射是空的：每一行都会被当成「没有项目」滤掉，
+    // 手机那边就显示成「这个项目还没有对话」。等一拍再取一次，再决定要不要按项目过滤。
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    byPath = projectIdByPath(workspaceRows(ctx))
+  }
   const isRunning = (id) => liveTurnRunning(liveTurns, id)
   // 列表页（App 冷启动、开历史页）走 SWR：先给缓存行、后台刷新，不让用户等宿主 list()。
   // 派发/路由解析这类「必须准」的调用仍然走严格路径（默认）。
@@ -6399,21 +6405,19 @@ export function apply(ctx, config) {
 
       if (route === 'sessions' && method === 'GET') {
         try {
-          return sendJson(
-            res,
-            200,
-            await browseSessions(
-              ctx,
-              {
-                // App 传的是 workspaceId（项目 = 工作区），桌面端传 projectId，两边都认。
-                projectId: url.searchParams.get('projectId') ?? url.searchParams.get('workspaceId') ?? '',
-                limit: url.searchParams.get('limit') ?? '',
-                before: url.searchParams.get('before') ?? '',
-              },
-              liveTurns,
-              { soft: true },
-            ),
-          )
+          const q = {
+            // App 传的是 workspaceId（项目 = 工作区），桌面端传 projectId，两边都认。
+            projectId: url.searchParams.get('projectId') ?? url.searchParams.get('workspaceId') ?? '',
+            limit: url.searchParams.get('limit') ?? '',
+            before: url.searchParams.get('before') ?? '',
+          }
+          // 先给缓存（快）。但缓存冷或这一瞬还是空的，不能把「还没填好」直接当成
+          // 「这个项目没有会话」回给手机；指定了项目又空时，再走一次严格路径确认。
+          let out = await browseSessions(ctx, q, liveTurns, { soft: true })
+          if (!out.sessions?.length && q.projectId) {
+            out = await browseSessions(ctx, q, liveTurns, {})
+          }
+          return sendJson(res, 200, out)
         } catch (error) {
           LOG('会话列表读取失败：', error?.message ?? error)
           return sendJson(res, 500, { ok: false, error: '读取会话列表失败' })
