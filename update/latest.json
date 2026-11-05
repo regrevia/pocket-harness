@@ -1,14 +1,14 @@
 {
   "ok": true,
-  "versionCode": 215,
-  "versionName": "0.9.145",
-  "size": 30091154,
-  "sha256": "f7556a5485b96562711824ecc74f76344dafef0695529b197bba06f1f725db1b",
+  "versionCode": 220,
+  "versionName": "0.9.150",
+  "size": 30093222,
+  "sha256": "17207f96a37ddc9b5144d1482df952982956007ee9db6a9c6cc445e3bf9d8ed6",
   "file": "app-release.apk",
-  "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.145/app-release.apk",
-  "notes": "历史翻页只翻对话：工具执行记录不再把一片对话挤成空白页；空态文案分开",
-  "minPlugin": "0.2.3",
-  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.145/app-release.apk",
-  "publishedAt": "2026-11-02T04:10:27.718Z",
-  "promotedAt": "2026-11-02T04:10:31.626Z"
+  "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.150/app-release.apk",
+  "notes": "会话选择器列出了项目下所有会话，不再显示空项目；中转模式可直接配对；图片、语音、派发目标留在原会话",
+  "minPlugin": "0.3.0",
+  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.150/app-release.apk",
+  "publishedAt": "2026-11-05T10:55:32.166Z",
+  "promotedAt": "2026-11-05T10:55:35.693Z"
 }
