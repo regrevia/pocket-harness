@@ -38,7 +38,9 @@
     "selftest.mjs",
     "public/",
     "tts/",
-    "asr/"
+    "asr/",
+    "token.mjs",
+    "relay.mjs"
   ],
   "author": {
     "name": "regrevia",
