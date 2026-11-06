@@ -1,14 +1,14 @@
 {
   "ok": true,
-  "versionCode": 220,
-  "versionName": "0.9.150",
-  "size": 30093222,
-  "sha256": "17207f96a37ddc9b5144d1482df952982956007ee9db6a9c6cc445e3bf9d8ed6",
+  "versionCode": 221,
+  "versionName": "0.9.151",
+  "size": 30093702,
+  "sha256": "489e64e877e6f033e450adf25129274462bfbc40d7e1bcc9e45fe331fd5538ad",
   "file": "app-release.apk",
-  "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.150/app-release.apk",
-  "notes": "会话选择器列出了项目下所有会话，不再显示空项目；中转模式可直接配对；图片、语音、派发目标留在原会话",
+  "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.151/app-release.apk",
+  "notes": "被移出的手机重新扫码即可重新连上",
   "minPlugin": "0.3.0",
-  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.150/app-release.apk",
-  "publishedAt": "2026-11-05T10:55:32.166Z",
-  "promotedAt": "2026-11-05T10:55:35.693Z"
+  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.151/app-release.apk",
+  "publishedAt": "2026-11-06T20:34:50.457Z",
+  "promotedAt": "2026-11-06T20:34:54.356Z"
 }
