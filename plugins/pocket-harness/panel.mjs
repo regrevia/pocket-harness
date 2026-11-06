@@ -126,11 +126,56 @@ function readDeviceStore() {
       lastSeen: Number(item.lastSeen) || 0,
     })
   }
-  return { maxDevices: clampMaxDevices(raw?.maxDevices, 2), devices }
+  // 被用户「移出」的设备 id 留在撤销名单里：主令牌还是那一枚，靠这个名单
+  // 让那台手机的请求一律 401，其余设备不受影响（换主令牌会全体重配）。
+  const revoked = []
+  for (const item of Array.isArray(raw?.revoked) ? raw.revoked : []) {
+    const id = String(item ?? '').trim().toLowerCase()
+    if (/^[a-f0-9]{8,32}$/.test(id) && !revoked.includes(id)) revoked.push(id)
+  }
+  return { maxDevices: clampMaxDevices(raw?.maxDevices, 2), devices, revoked: revoked.slice(-50) }
 }
 
-function writeDeviceStore(devices, maxDevices) {
-  writeJson(DEVICES_PATH, { maxDevices, devices })
+function writeDeviceStore(devices, maxDevices, revoked = []) {
+  writeJson(DEVICES_PATH, { maxDevices, devices, revoked: revoked.slice(-50) })
+}
+
+/** 这台设备是不是被用户在面板里移出过（撤销名单里的 id 不再算连上，也不再占额度）。 */
+export function isDeviceRevoked(id) {
+  const key = String(id ?? '').trim().toLowerCase()
+  if (!key) return false
+  try {
+    return readDeviceStore().revoked.includes(key)
+  } catch {
+    return false
+  }
+}
+
+/** 这台手机重新扫码（请求带 `x-pet-repair: 1`）时撤掉撤销记录，让重新配对能真正落地。 */
+export function unrevokeDevice(id) {
+  const key = String(id ?? '').trim().toLowerCase()
+  if (!/^[a-f0-9]{8,32}$/.test(key)) return false
+  try {
+    const store = readDeviceStore()
+    if (!store.revoked.includes(key)) return false
+    writeDeviceStore(store.devices, store.maxDevices, store.revoked.filter((item) => item !== key))
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function revokeDevice(id) {
+  const key = String(id ?? '').trim().toLowerCase()
+  if (!/^[a-f0-9]{8,32}$/.test(key)) return false
+  try {
+    const store = readDeviceStore()
+    if (!store.revoked.includes(key)) store.revoked.push(key)
+    writeDeviceStore(store.devices, store.maxDevices, store.revoked)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function remoteAddress(req) {
@@ -200,6 +245,8 @@ export function touchDevice(req) {
       ? claimed
       : createHash('sha1').update(`${ua}${ip}`).digest('hex').slice(0, 12)
     const store = readDeviceStore()
+    // 用户移出过的设备即使还拿着旧主令牌也不再记录（调用方会回 401）。
+    if (claimedMatch && store.revoked.includes(id)) return { ok: false, reason: 'revoked', id }
     const existing = store.devices.find((item) => item.id === id)
     // 绑定上限以前只是面板上的一个数字：不执行就等于没设。新设备超限不再记录，
     // 由调用方回 429（旧设备继续用不受影响，否则自己把自己锁在门外）。
@@ -239,7 +286,7 @@ export function touchDevice(req) {
         .sort((a, b) => a.lastSeen - b.lastSeen)
         .splice(0, store.devices.length - 50)
     }
-    writeDeviceStore(store.devices, store.maxDevices)
+    writeDeviceStore(store.devices, store.maxDevices, store.revoked)
     return { ok: true, id }
   } catch {
     /* 设备记录失败不影响请求本身 */
@@ -257,21 +304,26 @@ export function listDevices() {
  */
 export function clearDevices() {
   try {
-    writeDeviceStore([], readDeviceStore().maxDevices)
+    const store = readDeviceStore()
+    writeDeviceStore([], store.maxDevices, store.revoked)
     return true
   } catch {
     return false
   }
 }
 
+/**
+ * 移出一台：删掉它的记录，同时把 id 记进撤销名单。主令牌不动，所以其余设备照常；
+ * 只有这台（App 每个请求都带 x-pet-device-id）会被 401 挡回去，重新扫码才回来。
+ */
 export function removeDevice(id) {
-  const key = String(id ?? '').trim()
+  const key = String(id ?? '').trim().toLowerCase()
   if (!key) return false
   try {
     const store = readDeviceStore()
     const devices = store.devices.filter((item) => item.id !== key)
-    if (devices.length === store.devices.length) return false
-    writeDeviceStore(devices, store.maxDevices)
+    if (!store.revoked.includes(key)) store.revoked.push(key)
+    writeDeviceStore(devices, store.maxDevices, store.revoked)
     return true
   } catch {
     return false
@@ -423,7 +475,7 @@ export function setPanelConfig(patch) {
   // 旧版把上限存在设备表里，两处写同一个值，读哪份都不会互相打脸。
   try {
     const store = readDeviceStore()
-    writeDeviceStore(store.devices, next.maxDevices)
+    writeDeviceStore(store.devices, next.maxDevices, store.revoked)
   } catch {
     /* 设置已经落盘，设备表同步失败不影响这次保存 */
   }

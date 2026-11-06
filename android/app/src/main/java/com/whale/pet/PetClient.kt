@@ -61,7 +61,11 @@ class PetClient(private val config: () -> PetConfig) {
             json?.optString("error").takeUnless { it.isNullOrBlank() } ?: "HTTP $code"
     }
 
-    fun state(): Result = get("state", attempts = 2)
+    /**
+     * 配对校验用：带上 `x-pet-repair: 1` 告诉宿主「这是重新扫码」，
+     * 宿主会撤掉这台设备的移出记录（否则被移出的手机换了链接也永远 401）。
+     */
+    fun state(repair: Boolean = false): Result = get("state", attempts = 2, repair = repair)
 
     /** 宿主播报队列（`POST /api/say` 入队的句子）：`since` < 0 只对齐光标，不回放历史。 */
     fun say(since: Long): Result = get("say", mapOf("since" to since.toString()), attempts = 2)
@@ -74,8 +78,12 @@ class PetClient(private val config: () -> PetConfig) {
      * GET 是只读的，抖动时重放一次没有副作用（POST 靠 requestId 保幂等，不走这里）。
      * [attempts] 默认 1；轮询/列表这类读接口传 2，网络切换那一两秒不至于白等一轮。
      */
-    fun get(path: String, query: Map<String, String> = emptyMap(), attempts: Int = 1): Result =
-        request(path, query, "GET", null, 10_000, attempts = attempts)
+    fun get(
+        path: String,
+        query: Map<String, String> = emptyMap(),
+        attempts: Int = 1,
+        repair: Boolean = false,
+    ): Result = request(path, query, "GET", null, 10_000, attempts = attempts, repair = repair)
 
     fun postJson(path: String, body: JSONObject): Result =
         request(path, emptyMap(), "POST", body.toString().toByteArray(Charsets.UTF_8), 10_000)
@@ -545,6 +553,7 @@ class PetClient(private val config: () -> PetConfig) {
         body: ByteArray?,
         readTimeoutMs: Int,
         attempts: Int = 1,
+        repair: Boolean = false,
     ): Result {
         var last: Exception? = null
         var quickRetried = false
@@ -552,7 +561,7 @@ class PetClient(private val config: () -> PetConfig) {
         while (attempt <= attempts) {
             val t0 = System.currentTimeMillis()
             try {
-                val conn = open(path, query, method, readTimeoutMs)
+                val conn = open(path, query, method, readTimeoutMs, repair)
                 try {
                     if (body != null) {
                         conn.doOutput = true
@@ -609,6 +618,7 @@ class PetClient(private val config: () -> PetConfig) {
         query: Map<String, String>,
         method: String,
         readTimeoutMs: Int,
+        repair: Boolean = false,
     ): HttpURLConnection {
         val cfg = config()
         // 没配对时 apiBase 是空的：URL("") 会抛 MalformedURLException，把后台线程带走。
@@ -635,6 +645,7 @@ class PetClient(private val config: () -> PetConfig) {
         conn.setRequestProperty("User-Agent", "WhalePet/${BuildConfig.VERSION_NAME} (Android ${Build.VERSION.SDK_INT}; ${deviceName()})")
         conn.setRequestProperty("X-Pet-Device", deviceName())
         conn.setRequestProperty("X-Pet-Device-Id", deviceId())
+        if (repair) conn.setRequestProperty("X-Pet-Repair", "1")
         return conn
     }
 

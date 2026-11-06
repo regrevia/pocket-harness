@@ -59,11 +59,11 @@ try {
 } catch {
   zstdDecompressSync = null
 }
-import { getPanelConfig, normalizeTransport, panelState, qrSvg, setPanelConfig, removeDevice, clearDevices, touchDevice } from './panel.mjs?v=20261103a'
+import { getPanelConfig, normalizeTransport, panelState, qrSvg, setPanelConfig, removeDevice, clearDevices, touchDevice, isDeviceRevoked, unrevokeDevice } from './panel.mjs?v=20261107a'
 import { listLocalVoices, localTtsReady, normalizeTtsProvider, pickDefaultLocalVoice, synthesizeHttp, synthesizeLocal } from './tts/providers.mjs?v=20261027a'
 import { connectPublic, disconnectPublic, publicState, setPublicConfig, stopPublic } from './public.mjs?v=20261027a'
 import { startLan, lanState, stopLan } from './lan.mjs?v=20261027a'
-import { getRelayConfig, relayBase, relayState, setRelayConfig, startRelay, stopRelay } from './relay.mjs?v=20261103a'
+import { getRelayConfig, relayBase, relayState, setRelayConfig, startRelay, stopRelay } from './relay.mjs?v=20261106a'
 
 /** 插件名，必须等于 bundle patch 里的插入 id。 */
 export const name = 'pocket-harness'
@@ -6145,17 +6145,10 @@ export function apply(ctx, config) {
           } catch {
             /* 没有 id 就当没这个设备 */
           }
+          // 只移出这一台：删记录 + 把设备 id 记进撤销名单，主令牌不动，
+          // 所以别的手机不用重配；被移出的那台下次请求带 x-pet-device-id 会 401。
           const removed = removeDevice(id)
-          // 只删一行记录是假撤销：审阅实测旧令牌照样 200，那台手机下次请求又把自己
-          // 写回列表。设备表里每台设备用的都是同一枚主令牌，没有逐设备凭证，所以
-          // 「移出」必须是真撤销：换掉主令牌，这台和别的设备都要重新扫码。
-          // （逐设备凭证在计划里，属下一轮；先把安全性做对，代价是全体重配。）
-          if (removed) {
-            rotateToken()
-            // 同上：主令牌只有一枚，移出一台＝全体失效，设备表清空才和实际一致。
-            clearDevices()
-          }
-          return sendJson(res, 200, { ...(await snapshot()), rotated: removed })
+          return sendJson(res, 200, { ...(await snapshot()), removed: removed ? id : '' })
         }
 
         if (route === 'qr.svg' && method === 'GET') {
@@ -6238,6 +6231,21 @@ export function apply(ctx, config) {
     }
 
     if (!authed(req)) return sendJson(res, 401, { ok: false, error: 'unauthorized' })
+    // 用户在面板「移出」过的设备：主令牌没换（其余设备照常），靠请求自报的设备 id 挡回去。
+    // 不带设备 id 的老客户端无法区分，只能靠换主令牌，这条路径保留给用户在面板手动「换新链接」。
+    const deviceIdHeader = String(req?.headers?.['x-pet-device-id'] ?? '').trim().toLowerCase()
+    // 被移出的手机重新扫码时带 `x-pet-repair: 1`（App 在配对校验那一次请求上标），
+    // 这是用户主动的重配动作：先撤掉撤销记录，否则同一台机器永远 401、再怎么扫都配不上。
+    if (deviceIdHeader && String(req?.headers?.['x-pet-repair'] ?? '') === '1') {
+      try { unrevokeDevice(deviceIdHeader) } catch (error) { LOG('撤销名单回滚失败：', error?.message ?? error) }
+    }
+    if (deviceIdHeader && isDeviceRevoked(deviceIdHeader)) {
+      return sendJson(res, 401, {
+        ok: false,
+        code: 'device-removed',
+        error: '这台设备已被移出，重新扫码连接',
+      })
+    }
     // 通过令牌的请求都算这台设备还活着，列表里按最近活跃排；超出绑定上限就回收
     // 凭据（以前上限只存在面板里，不执行，等于没设）。
     const deviceTouch = touchDevice(req)

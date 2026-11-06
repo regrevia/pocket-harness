@@ -571,7 +571,7 @@ class ScanActivity : Activity() {
             // 中转刚醒、隧道刚重连时第一下常被拒（Connection reset），连不上就再试一次。
             for (attempt in 1..2) {
                 try {
-                    val r = PetClient { cfg }.state()
+                    val r = PetClient { cfg }.state(repair = true)
                     ok = r.ok
                     if (!r.ok) {
                         reason = if (r.code == 401) "HTTP 401（令牌不对）" else "HTTP ${r.code} ${r.error()}"

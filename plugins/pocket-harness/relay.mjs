@@ -16,8 +16,8 @@ import { forwardPath } from './guardPath.mjs'
 
 const DIR = join(homedir(), '.dsh/pet-voice')
 const CONFIG_PATH = join(DIR, 'relay.json')
-const DEFAULT_WS = 'ws://42.193.189.240/relay/ws'
-const DEFAULT_BASE = 'http://42.193.189.240/r/%s/pet-voice/'
+const DEFAULT_WS = 'wss://pet.regrevia.com/relay/ws'
+const DEFAULT_BASE = 'https://pet.regrevia.com/r/%s/pet-voice/'
 
 const state = {
   socket: null,
@@ -178,7 +178,12 @@ export function startRelay({ port } = {}) {
     }
   })
 
+  // close 与 error 可能先后到；只认第一次，否则会排两个重连定时器，两边互抢同一条连接。
+  let failed = false
   const fail = (reason) => {
+    if (failed) return
+    failed = true
+    if (state.socket !== ws) return
     state.connected = false
     state.lastError = reason
     stopRelay({ keepConfig: true })

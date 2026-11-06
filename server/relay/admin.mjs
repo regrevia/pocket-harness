@@ -14,7 +14,7 @@ import { randomBytes } from 'node:crypto'
 import { dirname } from 'node:path'
 
 const FILE = process.env.RELAY_TENANTS ?? '/etc/pet-relay/tenants.json'
-const PUBLIC_BASE = process.env.RELAY_PUBLIC_BASE ?? 'http://42.193.189.240'
+const PUBLIC_BASE = process.env.RELAY_PUBLIC_BASE ?? 'https://pet.regrevia.com'
 
 function load() {
   try { return JSON.parse(readFileSync(FILE, 'utf8')) } catch { return {} }

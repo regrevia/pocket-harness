@@ -623,6 +623,8 @@ class MainActivity : Activity() {
             outfit = PetConfig.OUTFITS.getOrNull(outfitSpinner.selectedItemPosition)?.first ?: "",
         )
         PetSettings.save(this, cfg)
+        // 把链接粘在地址栏也算重新配对：让宿主撤掉这台设备的移出记录。
+        if (paired != null) Thread { runCatching { PetClient { cfg }.state(repair = true) } }.start()
         wakeNameInput.setText(cfg.wakeName)
         hostInput.setText(base)
         connected = null

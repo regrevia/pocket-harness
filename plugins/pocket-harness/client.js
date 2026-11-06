@@ -220,7 +220,7 @@ window.__ModuleLoader__.load({
       server: '服务器还没连上。',
       lan: '手机得和这台电脑同一个 Wi-Fi，电脑防火墙放行才连得上。',
       domain: '填好域名，二维码就出来。',
-      relay: '填好中转地址和密钥，二维码就出来。',
+      relay: '填好站点和密钥，二维码就出来。',
     }
 
     /** 每种方案要用户先准备好什么，只有一行。 */
@@ -228,7 +228,7 @@ window.__ModuleLoader__.load({
       server: '要一台能 SSH 的服务器',
       lan: '手机和电脑连同一个 Wi-Fi',
       domain: '要已经能打开的域名',
-      relay: '要一串中转地址和密钥',
+      relay: '要一个中转站和密钥',
     }
 
     const VOICES = [
@@ -621,43 +621,60 @@ window.__ModuleLoader__.load({
               ? '正在连…'
               : ''
 
+      const relayReady = Boolean(relay?.enabled && relay?.base)
       const relayInline = h(
         'div',
         { style: { ...S.mode(false), flexDirection: 'column', alignItems: 'stretch', gap: 8, cursor: 'default' } },
-        h(
-          'div',
-          { style: { display: 'flex', gap: 8, alignItems: 'center' } },
-          h('span', { style: S.label }, '地址'),
-          h(Input, {
-            value: relayDraft.slug ?? '',
-            onChange: relayField('slug'),
-            onCommit: saveRelay,
-            placeholder: '规定给你的那串',
-            width: '100%',
-          }),
-        ),
-        h(
-          'div',
-          { style: { display: 'flex', gap: 8, alignItems: 'center' } },
-          h('span', { style: S.label }, '密钥'),
-          h(Input, {
-            value: relayDraft.secret ?? '',
-            onChange: relayField('secret'),
-            onCommit: saveRelay,
-            placeholder: relay?.hasSecret ? '已保存，要换才重填' : '规定给你的那串',
-            width: '100%',
-          }),
-        ),
-        h(
-          'div',
-          { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-          h('button', { style: S.button, disabled: relayBusy, onClick: saveRelay }, relayBusy ? '正在连…' : '保存并连接'),
-          relay?.enabled ? h('button', { style: S.button, disabled: relayBusy, onClick: dropRelay }, '断开') : null,
-          h('span', { style: { ...S.hint, flex: 1, minWidth: 0 } }, relayError || relayStatus),
-        ),
+        relayReady
+          ? h(
+              'div',
+              { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+              h('span', { style: S.name, flex: 1, minWidth: 0 }, relayStatus || '已连上'),
+              h('button', { style: S.button, disabled: relayBusy, onClick: dropRelay }, '断开'),
+            )
+          : h(
+              React.Fragment,
+              null,
+              h(
+                'div',
+                { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                h('span', { style: S.label }, '站点'),
+                h(Input, {
+                  value: relayDraft.slug ?? '',
+                  onChange: relayField('slug'),
+                  onCommit: saveRelay,
+                  placeholder: '中转站给你的名字',
+                  width: '100%',
+                }),
+              ),
+              h(
+                'div',
+                { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                h('span', { style: S.label }, '密钥'),
+                h(Input, {
+                  value: relayDraft.secret ?? '',
+                  onChange: relayField('secret'),
+                  onCommit: saveRelay,
+                  placeholder: relay?.hasSecret ? '已保存，要换才重填' : '中转站给你的密钥',
+                  width: '100%',
+                }),
+              ),
+              h(
+                'div',
+                { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+                h('button', { style: S.primary, disabled: relayBusy, onClick: saveRelay }, relayBusy ? '正在连…' : '保存并连接'),
+                h('span', { style: { ...S.hint, flex: 1, minWidth: 0 } }, relayError || relayStatus),
+              ),
+            ),
+        relayReady && relayError ? h('div', { style: S.hint }, relayError) : null,
       )
 
-      /* ---------------- 连上手机：三种方案，选一个填好就出二维码 ---------------- */
+      // 下载入口只留一行，跟二维码放一起：装机和配对是同一件事。
+      const appMeta = state.app ?? {}
+      const appUrl = appMeta.url || ''
+      const appVersionName = appMeta.versionName || ''
+
+      /* ---------------- 连上手机：四种连法，选一个填好就出二维码 ---------------- */
 
       const pairSection = h(
         Section,
@@ -726,12 +743,43 @@ window.__ModuleLoader__.load({
               ),
             )
           : h('div', { style: S.hint }, MODE_HINT[draft.mode] || '选一种连法'),
+        h(
+          'div',
+          { style: S.device },
+          h('span', { style: S.label }, '手机还没装'),
+          h('span', { style: S.grow }),
+          h('a', { href: appUrl || '', target: '_blank', rel: 'noreferrer', style: S.link }, appVersionName ? `下载 ${appVersionName}` : '去下载'),
+        ),
       )
 
       /* ---------------- 人设 ---------------- */
 
+      // 开关两列放：六项整行排下来太长，一行两个不丢功能。
+      const toggle = (label, key, value) =>
+        h(
+          'div',
+          { style: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 } },
+          h('span', { style: { ...S.label, flex: 1, minWidth: 0 } }, label),
+          h(
+            'button',
+            {
+              style: S.switch(value),
+              'aria-label': label,
+              onClick: () => {
+                const next = !value
+                field(key)(next)
+                save({ [key]: next })
+              },
+            },
+            h('span', { style: S.knob(value) }),
+          ),
+        )
+
       const paramRow = (label, control) =>
         h('div', { style: { ...S.row, ...S.rowBorder } }, h('span', { style: S.label }, label), control)
+
+      // 不出声时不用露语音来源。
+      const voiceNeeded = Boolean(draft.voiceOn || draft.wakeOn)
 
       const paramsSection = h(
         Section,
@@ -748,30 +796,65 @@ window.__ModuleLoader__.load({
               placeholder: '大肥鱼',
             }),
           ),
+          h(
+            'div',
+            { style: { ...S.row, ...S.rowBorder, flexDirection: 'column', alignItems: 'stretch', gap: 8 } },
+            h('span', { style: { ...S.label, minWidth: 0 } }, '说话方式'),
+            h('textarea', {
+              value: draft.persona,
+              rows: 3,
+              placeholder: '它该怎么说话',
+              style: { ...S.input, width: '100%', resize: 'vertical', lineHeight: 1.6 },
+              onChange: (e) => field('persona')(e.target.value),
+              onBlur: () => commit('persona')(),
+            }),
+          ),
           paramRow(
-            '语音来源',
+            '一句话长短',
             h(
               'select',
               {
-                value: draft.ttsProvider,
-                style: { ...S.input, width: 140 },
+                value: draft.maxWords,
+                style: { ...S.input, width: 84 },
                 onChange: (e) => {
-                  const ttsProvider = e.target.value
-                  setDraft((d) => ({ ...d, ttsProvider }))
-                  save({ ttsProvider })
+                  field('maxWords')(e.target.value)
+                  save({ maxWords: e.target.value })
                 },
               },
-              TTS_PROVIDERS.map((item) => h('option', { key: item.id, value: item.id }, item.label)),
+              MAXWORD_OPTIONS.map((item) => h('option', { key: item.id, value: item.id }, item.label)),
             ),
           ),
-          draft.ttsProvider === 'http' && !String(draft.ttsUrl || '').trim()
-            ? h(
-                'div',
-                { style: { ...S.row, color: 'var(--dsw-alias-state-warning-primary, #b7791f)', fontSize: 12 } },
-                '填上接口地址，手机才会出声。',
+          h(
+            'div',
+            { style: { ...S.row, ...S.rowBorder, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 14px' } },
+            [
+              ['语音对话', 'voiceOn', draft.voiceOn],
+              ['气泡', 'bubble', draft.bubble],
+              ['叫名字', 'wakeOn', draft.wakeOn],
+              ['连续对话', 'continuousOn', draft.continuousOn],
+              ['摸头', 'interact', draft.interact],
+              ['会话冒泡', 'link', draft.link],
+            ].map(([label, key, value]) => toggle(label, key, value)),
+          ),
+          voiceNeeded
+            ? paramRow(
+                '语音来源',
+                h(
+                  'select',
+                  {
+                    value: draft.ttsProvider,
+                    style: { ...S.input, width: 140 },
+                    onChange: (e) => {
+                      const ttsProvider = e.target.value
+                      setDraft((d) => ({ ...d, ttsProvider }))
+                      save({ ttsProvider })
+                    },
+                  },
+                  TTS_PROVIDERS.map((item) => h('option', { key: item.id, value: item.id }, item.label)),
+                ),
               )
             : null,
-          draft.ttsProvider === 'http'
+          voiceNeeded && draft.ttsProvider === 'http'
             ? paramRow(
                 '接口地址',
                 h(Input, {
@@ -782,49 +865,37 @@ window.__ModuleLoader__.load({
                 }),
               )
             : null,
-          state.ttsReady === false && draft.ttsProvider === 'edge'
-            ? h(
-                'div',
-                { style: { ...S.row, color: 'var(--dsw-alias-state-warning-primary, #b7791f)', fontSize: 12 } },
-                '这台电脑还没装语音：在仓库里跑 bash plugins/pocket-harness/tts/setup.sh，装完刷新这一页。',
+          voiceNeeded
+            ? paramRow(
+                '音色',
+                draft.ttsProvider === 'http'
+                  ? h(Input, {
+                      value: draft.ttsVoice,
+                      onChange: field('ttsVoice'),
+                      onCommit: commit('ttsVoice'),
+                      placeholder: '接口默认',
+                      width: 140,
+                    })
+                  : h(
+                      'select',
+                      {
+                        value: voiceValue,
+                        style: { ...S.input, width: 140 },
+                        onChange: (e) => setVoice(e.target.value),
+                      },
+                      (voiceList.some((item) => item.id === voiceValue)
+                        ? voiceList
+                        : [...voiceList, { id: voiceValue, label: voiceValue || '默认' }]
+                      ).map((item) => h('option', { key: item.id, value: item.id }, item.name || item.label)),
+                    ),
               )
             : null,
-          paramRow(
-            '音色',
-            draft.ttsProvider === 'http'
-              ? h(Input, {
-                  value: draft.ttsVoice,
-                  onChange: field('ttsVoice'),
-                  onCommit: commit('ttsVoice'),
-                  placeholder: '接口默认',
-                  width: 140,
-                })
-              : h(
-                  'select',
-                  {
-                    value: voiceValue,
-                    style: { ...S.input, width: 140 },
-                    onChange: (e) => setVoice(e.target.value),
-                  },
-                  (voiceList.some((item) => item.id === voiceValue)
-                    ? voiceList
-                    : [...voiceList, { id: voiceValue, label: voiceValue || '默认' }]
-                  ).map((item) => h('option', { key: item.id, value: item.id }, item.name || item.label)),
-                ),
-          ),
-          h(
-            'div',
-            { style: { ...S.row, ...S.rowBorder, flexDirection: 'column', alignItems: 'stretch', gap: 8 } },
-            h('span', { style: { ...S.label, minWidth: 0 } }, '说话方式'),
-            h('textarea', {
-              value: draft.persona,
-              rows: 4,
-              placeholder: '它该怎么说话',
-              style: { ...S.input, width: '100%', resize: 'vertical', lineHeight: 1.6 },
-              onChange: (e) => field('persona')(e.target.value),
-              onBlur: () => commit('persona')(),
-            }),
-          ),
+          voiceNeeded && draft.ttsProvider === 'http' && !String(draft.ttsUrl || '').trim()
+            ? h('div', { style: S.hint }, '填上接口地址，手机才会出声。')
+            : null,
+          voiceNeeded && state.ttsReady === false && draft.ttsProvider === 'edge'
+            ? h('div', { style: S.hint }, '这台电脑还没装语音：在仓库里跑 bash plugins/pocket-harness/tts/setup.sh，装完刷新这一页。')
+            : null,
           paramRow(
             '旁听',
             h(
@@ -855,148 +926,6 @@ window.__ModuleLoader__.load({
               REASONING_OPTIONS.map((item) => h('option', { key: item.id, value: item.id }, item.label)),
             ),
           ),
-          paramRow(
-            '一句话长短',
-            h(
-              'select',
-              {
-                value: draft.maxWords,
-                style: { ...S.input, width: 84 },
-                onChange: (e) => {
-                  field('maxWords')(e.target.value)
-                  save({ maxWords: e.target.value })
-                },
-              },
-              MAXWORD_OPTIONS.map((item) => h('option', { key: item.id, value: item.id }, item.label)),
-            ),
-          ),
-          h(
-            'div',
-            { style: { ...S.row, ...S.rowBorder, justifyContent: 'space-between' } },
-            h('span', { style: S.label }, '气泡'),
-            h(
-              'button',
-              {
-                style: S.switch(draft.bubble),
-                'aria-label': '气泡',
-                onClick: () => {
-                  const next = !draft.bubble
-                  field('bubble')(next)
-                  save({ bubble: next })
-                },
-              },
-              h('span', { style: S.knob(draft.bubble) }),
-            ),
-          ),
-          h(
-            'div',
-            { style: { ...S.row, ...S.rowBorder, justifyContent: 'space-between' } },
-            h('span', { style: S.label }, '摸头互动'),
-            h(
-              'button',
-              {
-                style: S.switch(draft.interact),
-                'aria-label': '摸头互动',
-                onClick: () => {
-                  const next = !draft.interact
-                  field('interact')(next)
-                  save({ interact: next })
-                },
-              },
-              h('span', { style: S.knob(draft.interact) }),
-            ),
-          ),
-          h(
-            'div',
-            { style: { ...S.row, ...S.rowBorder, justifyContent: 'space-between' } },
-            h('span', { style: S.label }, '看会话冒泡'),
-            h(
-              'button',
-              {
-                style: S.switch(draft.link),
-                'aria-label': '看会话冒泡',
-                onClick: () => {
-                  const next = !draft.link
-                  field('link')(next)
-                  save({ link: next })
-                },
-              },
-              h('span', { style: S.knob(draft.link) }),
-            ),
-          ),
-          h(
-            'div',
-            { style: { ...S.row, ...S.rowBorder, justifyContent: 'space-between' } },
-            h('span', { style: S.label }, '语音对话'),
-            h(
-              'button',
-              {
-                style: S.switch(draft.voiceOn),
-                'aria-label': '语音对话',
-                onClick: () => {
-                  const next = !draft.voiceOn
-                  field('voiceOn')(next)
-                  save({ voiceOn: next })
-                },
-              },
-              h('span', { style: S.knob(draft.voiceOn) }),
-            ),
-          ),
-          h(
-            'div',
-            { style: { ...S.row, ...S.rowBorder, justifyContent: 'space-between' } },
-            h('span', { style: S.label }, '叫名字唤醒'),
-            h(
-              'button',
-              {
-                style: S.switch(draft.wakeOn),
-                'aria-label': '叫名字唤醒',
-                onClick: () => {
-                  const next = !draft.wakeOn
-                  field('wakeOn')(next)
-                  save({ wakeOn: next })
-                },
-              },
-              h('span', { style: S.knob(draft.wakeOn) }),
-            ),
-          ),
-          h(
-            'div',
-            { style: { ...S.row, ...S.rowBorder, justifyContent: 'space-between' } },
-            h('span', { style: S.label }, '说完继续说'),
-            h(
-              'button',
-              {
-                style: S.switch(draft.continuousOn),
-                'aria-label': '说完继续说',
-                onClick: () => {
-                  const next = !draft.continuousOn
-                  field('continuousOn')(next)
-                  save({ continuousOn: next })
-                },
-              },
-              h('span', { style: S.knob(draft.continuousOn) }),
-            ),
-          ),
-        ),
-      )
-
-      /* ---------------- 手机 App ---------------- */
-
-      const app = state.app ?? {}
-      const appSection = h(
-        Section,
-        { title: '手机 App' },
-        h(
-          'div',
-          { style: S.card },
-          h(
-            'div',
-            { style: S.device },
-            h('span', { style: S.name }, '装到新手机上'),
-            h('span', { style: S.grow }),
-            h('a', { href: app.url || '', target: '_blank', rel: 'noreferrer', style: S.link }, app.versionName ? `下载 ${app.versionName}` : '去下载'),
-          ),
         ),
       )
 
@@ -1004,7 +933,7 @@ window.__ModuleLoader__.load({
 
       const devices = state.devices ?? []
       const maxDevices = Number(state.maxDevices) || 2
-      // 上限以前只能手改文件：手机被 429 挡住时面板里没有出路。加减各一步就够。
+      // 加减各一步：手机被 429 挡住时面板里要有出路。
       const saveMax = async (raw) => {
         const next = Math.min(8, Math.max(1, raw))
         if (next === maxDevices) return
@@ -1022,7 +951,7 @@ window.__ModuleLoader__.load({
       })
       const deviceSection = h(
         Section,
-        { title: '手机' },
+        { title: '已连上的手机' },
         h(
           'div',
           { style: S.card },
@@ -1060,7 +989,7 @@ window.__ModuleLoader__.load({
                 ),
               )
             : h('div', { style: { ...S.device, color: C.dim, fontSize: 13 } }, '还没有手机连上'),
-      h('div', { style: { ...S.rowSub, paddingLeft: 0 } }, '移出一台会让所有手机都断开，手机要重新扫码'),
+      h('div', { style: { ...S.rowSub, paddingLeft: 0 } }, '移出只断开这一台，它要重新扫码'),
         ),
       )
 
@@ -1071,9 +1000,8 @@ window.__ModuleLoader__.load({
           'div',
           { style: S.inner },
           error ? h('div', { style: S.error }, error) : null,
-          paramsSection,
           pairSection,
-          appSection,
+          paramsSection,
           deviceSection,
         ),
       )
