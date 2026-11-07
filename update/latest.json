@@ -1,13 +1,13 @@
 {
   "ok": true,
-  "versionCode": 223,
-  "versionName": "0.9.153",
-  "size": 30094698,
-  "sha256": "a16840ea7e3b0ebc67593db2fca3736b7b231db99e2528dd26bc3eb19c643da1",
+  "versionCode": 224,
+  "versionName": "0.9.154",
+  "size": 30094306,
+  "sha256": "5d1b161b67a817c2bee394392f78364e8a964aaa0e9a0d4aedaeac2abafdf7bd",
   "file": "app-release.apk",
-  "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.153/app-release.apk",
-  "notes": "",
-  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.153/app-release.apk",
-  "publishedAt": "2026-11-07T04:10:22.222Z",
-  "promotedAt": "2026-11-07T04:10:26.793Z"
+  "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.154/app-release.apk",
+  "notes": "0.9.154：点项目只看该项目的会话，不再顺手新建空会话",
+  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.154/app-release.apk",
+  "publishedAt": "2026-11-07T06:31:14.197Z",
+  "promotedAt": "2026-11-07T06:31:18.175Z"
 }
