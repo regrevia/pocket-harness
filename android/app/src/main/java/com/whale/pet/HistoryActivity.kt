@@ -719,7 +719,10 @@ class HistoryActivity : Activity() {
         // 沿用上一只的项目名正是「页头项目跟会话对不上」的来源。
         val shownNow = PetSettings.chatSession(this)
         val known = liveProjectIdSession.isNotBlank() && liveProjectIdSession == shownNow
-        val title = if (known) liveProjectTitle.ifBlank { PetSettings.pinnedTitleFor(this, shownNow) } else ""
+        // 项目 id 都认不出来时不拿本地记下的名字凑：那是上一只的，凑上去就是串项目
+        val title = if (known && liveProjectId.isNotBlank()) {
+            liveProjectTitle.ifBlank { PetSettings.pinnedTitleFor(this, shownNow) }
+        } else ""
         projectBtn.text = title.ifBlank { "项目" }
         // 第二行是「这一问落在哪只会话」。还没拿到会话名（刚开的新会话、名字还没生成）
         // 就直说「新会话」：拿项目名顶上会让人以为自己在旧对话里。
@@ -3020,12 +3023,9 @@ class HistoryActivity : Activity() {
             runOnUiThread {
                 pickerLoading = false
                 projects = out
-                if (pinnedTitle.isNotBlank()) {
-                    // 项目单独存一份之外，页面自己也得记住这一行，别等下次轮询才对齐
-                    liveProjectTitle = pinnedTitle
-                    PetSettings.savePinnedTitle(this, pinnedTitle)
-                    refreshHeader()
-                }
+                // 宿主钉的项目只是「打开列表先看哪个」的默认值，不是这只会话的项目：
+                // 拿它改页头、存本地，换过会话就成了「项目 A / 会话 B」，重启还带着。
+                if (pinnedTitle.isNotBlank()) pickerProject = pinnedTitle
                 pickerRows.clear()
                 if (out.isEmpty()) {
                     pickerRows.add(PickerRow.Head("没有项目"))
@@ -3071,12 +3071,9 @@ class HistoryActivity : Activity() {
             runOnUiThread {
                 if (!isFinishing && !isDestroyed) {
                     if (id.isNotBlank()) pickerProjectId = id
-                    if (title.isNotBlank()) {
-                        pickerProject = title
-                        liveProjectTitle = title
-                        PetSettings.savePinnedTitle(this, title)
-                        refreshHeader()
-                    }
+                    // 宿主钉的项目只是「打开列表看哪个项目」的默认值，不是这只会话的项目名：
+                    // 拿它去改页头和本地记录，换过会话就会出现「项目是 A、会话是 B」。
+                    if (title.isNotBlank()) pickerProject = title
                     pickerTitle.text = pickerProject.ifBlank { "会话" }
                     loadSessions()
                 }
@@ -3096,7 +3093,7 @@ class HistoryActivity : Activity() {
         val client = PetClient { PetSettings.load(this) }
         val cur = PetSettings.chatSession(this)
         // 按项目查：宿主的会话接口不带 projectId 时只回最近 50 条，项目里的老会话会被截掉。
-        val wantProj = pickerProjectId.ifBlank { liveProjectId }
+        val wantProj = liveProjectId.ifBlank { pickerProjectId }
         Thread({
             // 返回 (这一趟的会话, 这一趟是否真的连上了宿主)。
             // 连不上和「项目里没有会话」在界面上必须分开：前者要能点一下重来。
@@ -3219,9 +3216,11 @@ class HistoryActivity : Activity() {
         if (pickerLoading) return
         when (row) {
             is PickerRow.Proj -> {
+                // 点项目 = 看这个项目的会话，不换工作区、也不新建会话：
+                // 以前这一下直接开一只新会话，人就落进空会话（没记录、页头还是上一只的名字）。
                 pickerProjectId = row.ws.id
                 pickerProject = row.ws.title
-                pickProject(row.ws)
+                loadSessions()
             }
             is PickerRow.SessRow -> {
                 // 点会话就是进这只：原文、目标真实状态、待输出队列一次到位，
@@ -3236,32 +3235,6 @@ class HistoryActivity : Activity() {
             is PickerRow.Retry -> loadSessions()
             else -> {}
         }
-    }
-
-    /** 选项目 = 定好工作区，并在里面开一只新会话；操作完直接回到对话。 */
-    private fun pickProject(ws: Ws) {
-        closePicker()
-        // 项目与会话是 header 的一对：换项目先把这个位占好，随后开的新会话只补下半行
-        liveProjectTitle = ws.title
-        PetSettings.savePinnedTitle(this, ws.title)
-        refreshHeader()
-        val client = PetClient { PetSettings.load(this) }
-        Thread({
-            var id = ""
-            try {
-                if (ws.id.isNotBlank()) client.switchWorkspace(ws.id)
-                id = client.newSession(fresh = true).json?.optString("sessionId").orEmpty()
-            } catch (_: Exception) {
-            }
-            runOnUiThread {
-                if (id.isNotBlank()) {
-                    PetSettings.saveChatSession(this, id)
-                    // 新会话定了才把项目名挂到它名下：挂在旧会话上照样会被当成过期值
-                    PetSettings.savePinnedTitle(this, ws.title, id)
-                }
-                reload()
-            }
-        }, "pet-pick-project").apply { isDaemon = true }.start()
     }
 
     /** 选会话 = 把 App 的对话钉到那只上。只此一个会话页，不再另开一层。 */
