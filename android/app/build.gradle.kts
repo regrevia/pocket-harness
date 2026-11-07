@@ -19,8 +19,8 @@ android {
         applicationId = "com.pocketharness.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 222
-        versionName = "0.9.152"
+        versionCode = 223
+        versionName = "0.9.153"
     }
 
     signingConfigs {

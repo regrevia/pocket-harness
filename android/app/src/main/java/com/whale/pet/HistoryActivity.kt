@@ -715,7 +715,11 @@ class HistoryActivity : Activity() {
     private fun refreshHeader() {
         // 面板关掉「语音对话」时这一页就别留着话筒：留着点了也没用
         micBtn.visibility = if (PetSettings.feature(this, "voice")) View.VISIBLE else View.GONE
-        val title = liveProjectTitle.ifBlank { PetSettings.pinnedTitle(this) }
+        // 顶行项目名只认「这只会话自己查出来的」：换了会话还没查到就先空着，
+        // 沿用上一只的项目名正是「页头项目跟会话对不上」的来源。
+        val shownNow = PetSettings.chatSession(this)
+        val known = liveProjectIdSession.isNotBlank() && liveProjectIdSession == shownNow
+        val title = if (known) liveProjectTitle.ifBlank { PetSettings.pinnedTitleFor(this, shownNow) } else ""
         projectBtn.text = title.ifBlank { "项目" }
         // 第二行是「这一问落在哪只会话」。还没拿到会话名（刚开的新会话、名字还没生成）
         // 就直说「新会话」：拿项目名顶上会让人以为自己在旧对话里。
@@ -1525,15 +1529,16 @@ class HistoryActivity : Activity() {
         // 会话列表要按项目查，这里把当前会话的项目 id 留一份（state 里没有就沿用上次的）
         // 项目 id 必须跟着它自己那只会话：查不到就清掉，留着上一只的会让列表和页头不同源
         val shownPid = projectIdOf(state, shown)
-        if (shownPid.isNotBlank()) {
-            liveProjectId = shownPid
-        } else if (shown.isNotBlank() && shown != liveProjectIdSession) {
+        // 换了会话先把上一只的项目清干净：这一只查不到就空着，也不拿旧值凑页头
+        if (shown != liveProjectIdSession) {
             liveProjectId = ""
+            liveProjectTitle = ""
         }
+        if (shownPid.isNotBlank()) liveProjectId = shownPid
         liveProjectIdSession = shown
         if (projTitle.isNotBlank() && projTitle != liveProjectTitle) {
             liveProjectTitle = projTitle
-            if (projTitle != PetSettings.pinnedTitle(this)) PetSettings.savePinnedTitle(this, projTitle)
+            if (projTitle != PetSettings.pinnedTitleFor(this, shown)) PetSettings.savePinnedTitle(this, projTitle, shown)
             refreshHeader()
         }
         // 本地没钉：从这一刻起明确钉在宿主当前落点上，之后电脑上再换也不会把它带走
@@ -1624,7 +1629,7 @@ class HistoryActivity : Activity() {
                     val ptitle = projects.firstOrNull { it.id == pid }?.title.orEmpty()
                     if (ptitle.isNotBlank() && ptitle != liveProjectTitle) {
                         liveProjectTitle = ptitle
-                        PetSettings.savePinnedTitle(this, ptitle)
+                        PetSettings.savePinnedTitle(this, ptitle, id)
                         changed = true
                     }
                 }
@@ -2958,7 +2963,7 @@ class HistoryActivity : Activity() {
             }
             else -> {
                 pickerBack.visibility = View.VISIBLE
-                pickerTitle.text = pickerProject.ifBlank { PetSettings.pinnedTitle(this) }.ifBlank { "会话" }
+                pickerTitle.text = pickerProject.ifBlank { PetSettings.pinnedTitleFor(this, PetSettings.chatSession(this)) }.ifBlank { "会话" }
                 syncPickerProject()
             }
         }
@@ -3155,13 +3160,13 @@ class HistoryActivity : Activity() {
                 val curTitle = projects.firstOrNull { it.id == curWs }?.title.orEmpty()
                     .ifBlank { if (curWs.isNotBlank() && curWs == wsId) wsTitle else "" }
                 if (curWs.isNotBlank() && curTitle.isNotBlank() &&
-                    curTitle != PetSettings.pinnedTitle(this)
+                    curTitle != PetSettings.pinnedTitleFor(this, PetSettings.chatSession(this))
                 ) {
                     liveProjectTitle = curTitle
-                    PetSettings.savePinnedTitle(this, curTitle)
+                    PetSettings.savePinnedTitle(this, curTitle, PetSettings.chatSession(this))
                     refreshHeader()
                 }
-                pickerTitle.text = pickerProject.ifBlank { PetSettings.pinnedTitle(this) }.ifBlank { "会话" }
+                pickerTitle.text = pickerProject.ifBlank { PetSettings.pinnedTitleFor(this, PetSettings.chatSession(this)) }.ifBlank { "会话" }
                 pickerRows.clear()
                 pickerRows.add(PickerRow.NewChat("+ 新建对话"))
                 if (out.isNotEmpty()) {
@@ -3249,7 +3254,11 @@ class HistoryActivity : Activity() {
             } catch (_: Exception) {
             }
             runOnUiThread {
-                if (id.isNotBlank()) PetSettings.saveChatSession(this, id)
+                if (id.isNotBlank()) {
+                    PetSettings.saveChatSession(this, id)
+                    // 新会话定了才把项目名挂到它名下：挂在旧会话上照样会被当成过期值
+                    PetSettings.savePinnedTitle(this, ws.title, id)
+                }
                 reload()
             }
         }, "pet-pick-project").apply { isDaemon = true }.start()
@@ -3269,9 +3278,9 @@ class HistoryActivity : Activity() {
             liveProjectIdSession = s.id
             pickerProjectId = s.proj
         }
-        if (projTitle.isNotBlank() && projTitle != liveProjectTitle) {
+        if (projTitle.isNotBlank() && (projTitle != liveProjectTitle || s.proj != liveProjectId)) {
             liveProjectTitle = projTitle
-            PetSettings.savePinnedTitle(this, projTitle)
+            PetSettings.savePinnedTitle(this, projTitle, s.id)
         }
         // 切会话前先把旧会话上那一轮收掉：不 cancel 的话 turn 一直非空，新会话里连一个字
         // 都发不出去（提示永远是「上一轮还没结束」），跑着的那轮还会往新会话里写状态。

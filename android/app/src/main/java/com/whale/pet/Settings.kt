@@ -142,6 +142,7 @@ object PetSettings {
     private const val K_DISPLAY = "display_mode"
     private const val K_IN_APP = "show_in_app"
     private const val K_PINNED = "pinned_title"
+    private const val K_PINNED_SESSION = "pinned_session"
     private const val K_CHAT_SESSION = "chat_session"
     /** 上一次看到的「电脑上开着哪只对话」：用来发现桌面端换过会话。 */
     private const val K_FEAT = "host_features"
@@ -303,8 +304,26 @@ object PetSettings {
     /** 「现在钉在哪个项目」：只存标题给界面显示用；真身以 `/api/workspaces` 的 pinned 为准。 */
     fun pinnedTitle(context: Context): String = prefs(context).getString(K_PINNED, "").orEmpty()
 
+    /**
+     * 项目名只对它自己那只会话成立：存的时候记下属于哪只，读的时候对不上就不算数。
+     * 不然换了会话还挂着上一只的项目名，页头两行就不是一对。
+     */
+    fun pinnedTitleFor(context: Context, sessionId: String): String {
+        val sid = sessionId.trim()
+        if (sid.isEmpty()) return ""
+        val owner = prefs(context).getString(K_PINNED_SESSION, "").orEmpty()
+        return if (owner == sid) pinnedTitle(context) else ""
+    }
+
     fun savePinnedTitle(context: Context, title: String) {
-        prefs(context).edit().putString(K_PINNED, title.trim()).apply()
+        savePinnedTitle(context, title, chatSession(context))
+    }
+
+    fun savePinnedTitle(context: Context, title: String, sessionId: String) {
+        prefs(context).edit()
+            .putString(K_PINNED, title.trim())
+            .putString(K_PINNED_SESSION, sessionId.trim())
+            .apply()
     }
 
     /**

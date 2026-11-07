@@ -401,15 +401,33 @@ class MainActivity : Activity() {
         if (!cfg.ready) return
         titleFixing = true
         Thread({
-            val title = try {
-                PetClient { cfg }.workspaces().json?.optJSONObject("pinned")?.optString("title").orEmpty()
-            } catch (_: Exception) {
-                ""
+            val client = PetClient { cfg }
+            val sid = PetSettings.chatSession(this)
+            // 有钉住的会话就问它自己属于哪个项目；没钉才退回宿主当前项目
+            var title = ""
+            if (sid.isNotBlank()) {
+                try {
+                    val pid = client.sessionInfo(sid).json?.optJSONObject("session")?.optString("projectId").orEmpty()
+                    if (pid.isNotBlank()) {
+                        val arr = client.projects().json?.optJSONArray("projects")
+                        for (i in 0 until (arr?.length() ?: 0)) {
+                            val p = arr?.optJSONObject(i) ?: continue
+                            if (p.optString("id") == pid) { title = p.optString("title").orEmpty(); break }
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            } else {
+                title = try {
+                    client.workspaces().json?.optJSONObject("pinned")?.optString("title").orEmpty()
+                } catch (_: Exception) {
+                    ""
+                }
             }
             runOnUiThread {
                 titleFixing = false
                 if (title.isNotBlank() && title != projectShown) {
-                    PetSettings.savePinnedTitle(this, title)
+                    PetSettings.savePinnedTitle(this, title, sid)
                     setProjectTitle(title)
                 }
             }
@@ -491,7 +509,7 @@ class MainActivity : Activity() {
                 statusHost.setOnClickListener(null)
             }
             // 先用本地记下的项目名上屏，联网结果只做「纠正」，绝不先清空再等网络
-            setProjectTitle(PetSettings.pinnedTitle(this))
+            setProjectTitle(PetSettings.pinnedTitleFor(this, PetSettings.chatSession(this)))
             correctProjectTitleAsync()
         }
 
@@ -1001,7 +1019,7 @@ class MainActivity : Activity() {
             return
         }
         // 点「新对话」项目没变，但名字按本地状态立刻上屏（不回退成空串、不等网络）
-        setProjectTitle(PetSettings.pinnedTitle(this))
+        setProjectTitle(PetSettings.pinnedTitleFor(this, PetSettings.chatSession(this)))
         sessionLabel?.text = "会话：新开中…"
         Thread {
             val id = try {
