@@ -1,14 +1,13 @@
 {
   "ok": true,
-  "versionCode": 222,
-  "versionName": "0.9.152",
-  "size": 30094478,
-  "sha256": "6e6c8b4531becf24403d72b3287341be644496d2d8e7388a618424dfb324f635",
+  "versionCode": 223,
+  "versionName": "0.9.153",
+  "size": 30094698,
+  "sha256": "a16840ea7e3b0ebc67593db2fca3736b7b231db99e2528dd26bc3eb19c643da1",
   "file": "app-release.apk",
-  "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.152/app-release.apk",
-  "notes": "会话记录更稳：进老会话也能看到历史，页头项目和列表对齐；连不上时直说，不再假装没记录。中转下对话不再先卡 30 秒，更新包在中转里也能下载。",
-  "minPlugin": "0.3.0",
-  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.152/app-release.apk",
-  "publishedAt": "2026-11-07T03:16:03.610Z",
-  "promotedAt": "2026-11-07T03:16:07.661Z"
+  "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.153/app-release.apk",
+  "notes": "",
+  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.153/app-release.apk",
+  "publishedAt": "2026-11-07T04:10:22.222Z",
+  "promotedAt": "2026-11-07T04:10:26.793Z"
 }
