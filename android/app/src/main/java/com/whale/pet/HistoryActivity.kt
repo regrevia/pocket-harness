@@ -2308,6 +2308,14 @@ class HistoryActivity : Activity() {
             // 断网/开流失败走完一轮、宿主其实一个字都没收到：直接落盘补发，别再让人手动重试
             !userStopped && error?.contains("404") != true && error?.contains("会话已失效") != true &&
                 ended != null && ended.requeueIfLost() -> showRetry("已排队，联网后自动发出", null)
+            // 老宿主回执里不说「排队」，但这句确实排在前一轮后面：翻一眼队列，别催人重发
+            error == null && !userStopped && lastSent.isNotBlank() && queuedInHostNow(sentSid, lastSent) -> {
+                queuedNote = true
+                adapter.error = ""
+                adapter.errorAction = null
+                runText.text = PET_QUEUED_TEXT
+                runBar.visibility = View.VISIBLE
+            }
             error == null && !userStopped -> showRetry("没收到回复，重试", null)
             offline -> showRetry("连不上电脑，重新扫码", { startScan() })
             // 失败给一行可点的动作，不砸对话框：点了就用同一句话再发一次
@@ -2315,6 +2323,21 @@ class HistoryActivity : Activity() {
         }
         reload()
         updateSendAffordance()
+    }
+
+    /** 宿主没在回执里说「排队」，这句也可能真排着：查一次队列，只认还没发出去的那类。 */
+    private fun queuedInHostNow(sid: String, text: String): Boolean {
+        val session = sid.ifBlank { PetSettings.chatSession(this) }
+        if (session.isBlank() || text.isBlank()) return false
+        return runCatching {
+            val arr = PetClient { PetSettings.load(this) }.inbox(session).json?.optJSONArray("inbox")
+                ?: return@runCatching false
+            (0 until arr.length()).any { i ->
+                val row = arr.optJSONObject(i) ?: return@any false
+                row.optString("kind", "next-turn") == "next-turn" &&
+                    row.optString("text").trim() == text.trim()
+            }
+        }.getOrDefault(false)
     }
 
     private fun showRetry(text: String, action: (() -> Unit)?) {
