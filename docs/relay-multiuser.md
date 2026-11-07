@@ -68,8 +68,8 @@
   未知 slug 404，插件没连 503，请求体超 12 MB 413，30 s 没回 502。
 - `GET /relay/health`：`{ok,tenants,online[],pending,uptime}`。
 - 租户 `{slug,secret,note,createdAt}` 存 `/etc/pet-relay/tenants.json`（0600，写盘 tmp+rename）。
-- Caddy `handle /r/*` 与 `handle /relay/*` → `127.0.0.1:8090`，其余仍原样给 `8443`；用 `handle` 不剥前缀，
-  所以插件的路径校验看到的是完整 `/r/<slug>/pet-voice/...`。
+- Caddy `handle /r/*` 与 `handle /relay/*` → `127.0.0.1:8090`，其余仍原样给 `8443`；中继进程自己把 `/r/<slug>`
+  前缀剥掉再转给插件，所以插件看到的始终是 `/pet-voice/...`（`server.mjs` 的 `forwardPath`）。
 
 租户管理（服务器上）：
 

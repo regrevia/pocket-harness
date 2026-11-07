@@ -493,6 +493,9 @@ class PetClient(private val config: () -> PetConfig) {
         }
     }
 
+    /** 走中转时 SSE 到不了（中继是一问一答的整段 body）：直接用轮询，别干等一个读超时。 */
+    fun viaRelay(): Boolean = try { config().baseUrl.contains("/r/") } catch (_: Exception) { false }
+
     /** 宿主端有没有比本机新的 APK（`GET /api/update`）。 */
     fun update(): Result = get("update", emptyMap())
 
@@ -504,7 +507,10 @@ class PetClient(private val config: () -> PetConfig) {
         val cfg = config()
         val uri = java.net.URI(cfg.baseUrl)
         val abs = if (path.startsWith("/")) path else "/$path"
-        val conn = URL("${uri.scheme}://${uri.rawAuthority}$abs").openConnection() as HttpURLConnection
+        // 中转地址带 /r/<slug> 前缀：宿主回的是根绝对路径，直接拼会掉出中转落到上游
+        val basePath = (uri.path ?: "").trimEnd('/')
+        val relayPrefix = basePath.substringBeforeLast("/pet-voice", "")
+        val conn = URL("${uri.scheme}://${uri.rawAuthority}$relayPrefix$abs").openConnection() as HttpURLConnection
         conn.requestMethod = "GET"
         conn.connectTimeout = 2_500
         conn.readTimeout = 180_000

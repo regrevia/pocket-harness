@@ -225,7 +225,8 @@ object PetSettings {
     fun normalizeBase(raw: String): String {
         var s = raw.trim()
         if (s.isEmpty()) return ""
-        if (!s.startsWith("http://") && !s.startsWith("https://")) s = "https://$s"
+        val lower = s.lowercase()
+        if (!lower.startsWith("http://") && !lower.startsWith("https://")) s = "https://$s"
         val uri = try {
             Uri.parse(s)
         } catch (e: Exception) {
@@ -235,12 +236,11 @@ object PetSettings {
         val authority = uri.authority ?: return ""
         // 明文 http 只允许本机/局域网：公网 http 会把 token 和整段对话内容暴露在链路上。
         if (scheme != "https" && !plaintextHostAllowed(authority)) return ""
-        var path = (uri.path ?: "").trimEnd('/')
-        // 中转地址是 /r/<slug>/pet-voice/：前缀要留着，否则手机绕过中转打老链。
-        // 其余写法（裸域名、带错路径）仍旧归一到 /pet-voice/。
-        val segs = path.trim('/').split('/').filter { it.isNotEmpty() }
+        // 中转地址是 /r/<slug>/pet-voice/：前缀要留着，否则手机绕过中转打老链；
+        // 其余写法（裸域名、半截路径 /foo/pet-voice）一律重建成规范形，别留一个连不上的地址。
+        val segs = (uri.path ?: "").trim('/').split('/').filter { it.isNotEmpty() }
         val prefix = if (segs.size >= 2 && segs[0] == "r") "/r/${segs[1]}" else ""
-        if (!path.endsWith("/pet-voice")) path = "$prefix/pet-voice"
+        val path = "$prefix/pet-voice"
         return "$scheme://$authority$path/"
     }
 
@@ -253,6 +253,8 @@ object PetSettings {
         if (host.isEmpty()) return false
         if (host in plainHosts) return true
         if (host == "localhost" || host == "::1" || host == "10.0.2.2" || host == "127.0.0.1") return true
+        // IPv6 私网：fe80::/10 与 fc00::/7（hostOf 已剥掉方括号，这里只可能是字面量）
+        if (host.contains(':') && (host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd"))) return true
         if (host.endsWith(".local") || host.endsWith(".lan") || host.endsWith(".home")) return true
         if (host.startsWith("192.168.") || host.startsWith("10.")) return true
         if (host.startsWith("172.")) {
@@ -291,8 +293,12 @@ object PetSettings {
         plainHosts = plainHosts + host
     }
 
-    private fun hostOf(authority: String): String =
-        authority.substringBefore(':').substringAfter('[').substringBefore(']').lowercase()
+    private fun hostOf(authority: String): String {
+        val a = authority.trim()
+        // IPv6 是 [fe80::1]:52356：先剥方括号再取端口，不能先按 ':' 切
+        if (a.startsWith("[")) return a.substringAfter('[').substringBefore(']').lowercase()
+        return a.substringBefore(':').lowercase()
+    }
 
     /** 「现在钉在哪个项目」：只存标题给界面显示用；真身以 `/api/workspaces` 的 pinned 为准。 */
     fun pinnedTitle(context: Context): String = prefs(context).getString(K_PINNED, "").orEmpty()

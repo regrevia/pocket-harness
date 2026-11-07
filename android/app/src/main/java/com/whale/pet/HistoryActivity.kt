@@ -56,6 +56,7 @@ class HistoryActivity : Activity() {
         /** 对话列表空着时的那句话（加载中会临时换成别的，加载完换回来）。 */
         const val EMPTY_IDLE = "说句话开始"
         const val EMPTY_NO_ROWS = "这只对话在桌面端没有文字消息"
+        const val EMPTY_OFFLINE = "没连上电脑，点一下重试"
 
         /** 扫码页的请求码（首页用的是 42，这里错开）。 */
         const val REQ_SCAN = 43
@@ -151,6 +152,8 @@ class HistoryActivity : Activity() {
      */
     private var turnSeq = 0
     private var turnToken = 0
+    /** 这一轮发给的是哪只会话：落库按它，不按「此刻屏幕上是哪只」。 */
+    private var turnSession = ""
     /** 用户自己点了「停止」：这一轮不该再弹「没收到回复」。 */
     private var userStopped = false
     /** 这一轮在宿主上排队（电脑上还在跑）：状态行别被计时器改成「处理中」抢掉。 */
@@ -178,6 +181,9 @@ class HistoryActivity : Activity() {
     /** 宿主那边还有更早的没有取回来（历史懒加载的第二段来源）。 */
     private var hostMore = false
     private var hostPaging = false
+    /** 这一页是在取 / 上一次取失败：空列表的文案按它分三态，别把「没连上」说成「没有记录」。 */
+    private var hostLoading = false
+    private var hostLoadFailed = false
     private var hostSid = ""
     private var lastHostPageAt = 0L
     /** 列表自己的滚动状态：只有手指拖/甩到顶才自动补页。 */
@@ -291,6 +297,8 @@ class HistoryActivity : Activity() {
             insets
         }
         empty = findViewById(R.id.historyEmpty)
+        // 空列表上那句话就是重试入口：连不上时不用退出再进
+        empty.setOnClickListener { if (PetSettings.chatSession(this).isNotBlank()) loadHostPage(older = false) }
         typing = findViewById(R.id.chatTyping)
         toBottom = findViewById(R.id.chatToBottom)
         runBar = findViewById(R.id.chatRun)
@@ -1515,7 +1523,14 @@ class HistoryActivity : Activity() {
         // 顶上两行必须是一对：项目名从这只会话自己的 workspace 推，不再拿独立钉的项目名凑
         val projTitle = projectTitleOf(state, shown)
         // 会话列表要按项目查，这里把当前会话的项目 id 留一份（state 里没有就沿用上次的）
-        projectIdOf(state, shown).let { if (it.isNotBlank()) liveProjectId = it }
+        // 项目 id 必须跟着它自己那只会话：查不到就清掉，留着上一只的会让列表和页头不同源
+        val shownPid = projectIdOf(state, shown)
+        if (shownPid.isNotBlank()) {
+            liveProjectId = shownPid
+        } else if (shown.isNotBlank() && shown != liveProjectIdSession) {
+            liveProjectId = ""
+        }
+        liveProjectIdSession = shown
         if (projTitle.isNotBlank() && projTitle != liveProjectTitle) {
             liveProjectTitle = projTitle
             if (projTitle != PetSettings.pinnedTitle(this)) PetSettings.savePinnedTitle(this, projTitle)
@@ -1595,13 +1610,29 @@ class HistoryActivity : Activity() {
     private fun syncTitle(id: String) {
         val client = PetClient { PetSettings.load(this) }
         Thread({
-            val title = try { client.sessionInfo(id).json?.optJSONObject("session")?.optString("title").orEmpty() } catch (_: Exception) { "" }
-            if (title.isBlank()) return@Thread
+            // 老会话掉出了最近列表：这里顺带把它的项目一起取回来，页头和列表才有同一份依据
+            val sess = try { client.sessionInfo(id).json?.optJSONObject("session") } catch (_: Exception) { null }
+            val title = sess?.optString("title").orEmpty()
+            val pid = sess?.optString("projectId").orEmpty()
+            if (title.isBlank() && pid.isBlank()) return@Thread
             runOnUiThread {
-                if (!isFinishing && !isDestroyed && id == PetSettings.chatSession(this) && niceTitle(title) != liveSessionTitle) {
-                    liveSessionTitle = niceTitle(title)
-                    refreshHeader()
+                if (isFinishing || isDestroyed || id != PetSettings.chatSession(this)) return@runOnUiThread
+                var changed = false
+                if (pid.isNotBlank() && pid != liveProjectId) {
+                    liveProjectId = pid
+                    liveProjectIdSession = id
+                    val ptitle = projects.firstOrNull { it.id == pid }?.title.orEmpty()
+                    if (ptitle.isNotBlank() && ptitle != liveProjectTitle) {
+                        liveProjectTitle = ptitle
+                        PetSettings.savePinnedTitle(this, ptitle)
+                        changed = true
+                    }
                 }
+                if (title.isNotBlank() && niceTitle(title) != liveSessionTitle) {
+                    liveSessionTitle = niceTitle(title)
+                    changed = true
+                }
+                if (changed) refreshHeader()
             }
         }, "pet-session-title").apply { isDaemon = true }.start()
     }
@@ -1662,7 +1693,13 @@ class HistoryActivity : Activity() {
         if (live.isNotBlank()) rows.add(ChatRow.Live(live))
         adapter.rows = rows
         adapter.notifyDataSetChanged()
-        empty.text = if (PetSettings.chatSession(this).isNotBlank()) EMPTY_NO_ROWS else EMPTY_IDLE
+        val emptyFor = PetSettings.chatSession(this)
+        empty.text = when {
+            emptyFor.isBlank() -> EMPTY_IDLE
+            hostLoading && rows.isEmpty() -> "正在读取会话…"
+            hostLoadFailed && rows.isEmpty() -> EMPTY_OFFLINE
+            else -> EMPTY_NO_ROWS
+        }
         empty.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
         if (!keepScroll) scrollToBottom()
         refreshAsks()
@@ -1719,6 +1756,8 @@ class HistoryActivity : Activity() {
         val sid = PetSettings.chatSession(this)
         if (sid.isBlank()) return
         hostPaging = true
+        hostLoading = true
+        hostLoadFailed = false
         android.util.Log.i("PetChat", "hostpage start older=$older sid=${sid.takeLast(8)}")
         val first = list.firstVisiblePosition
         val top = list.getChildAt(0)?.top ?: 0
@@ -1811,6 +1850,7 @@ class HistoryActivity : Activity() {
                     cursor = minSeq
                 }
                 if (got) {
+                    hostLoadFailed = false
                     added = PetHistory.mergeHost(this, sid, acc, older)
                     hostSid = sid
                     // 「翻到头了」只有真到文件头才算；宿主少报 hasMore 时留一条往上翻的路
@@ -1819,11 +1859,15 @@ class HistoryActivity : Activity() {
                     android.util.Log.i("PetChat", "hostpage merged page=${acc.size} added=$added hasMore=$hostMore")
                 }
             } catch (e: Exception) {
+                hostLoadFailed = true
                 android.util.Log.i("PetChat", "hostpage fail ${e.javaClass.simpleName}: ${e.message}")
             } finally {
                 hostPaging = false
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
+                    hostLoading = false
+                    // 这一页回来的路上换了会话：别拿旧会话的结果去动新会话的列表
+                    if (sid != PetSettings.chatSession(this)) return@runOnUiThread
                     if (seedNewest) {
                         loadHostPage(older = false)
                         return@runOnUiThread
@@ -2100,6 +2144,7 @@ class HistoryActivity : Activity() {
         runText.text = "处理中 0 s"
         ui.post(ticker)
         val client = PetClient { PetSettings.load(this) }
+        turnSession = PetSettings.chatSession(this)
         val t = PetTurn(
             client,
             text,
@@ -2190,6 +2235,8 @@ class HistoryActivity : Activity() {
         runBar.visibility = View.GONE
         val finalText = adapter.live
         adapter.live = ""
+        // 这一轮属于哪只：中途换过会话也不能把回答落进新会话里
+        val sentSid = turnSession.ifBlank { PetSettings.chatSession(this) }
         // 连不上电脑（多半是电脑换了端口、地址失效）和「这轮没出字」是两种病，
         // 前者重发多少次都没用，得先换地址：那一行的动作就直接给扫码。
         val offline = error != null && (error.contains("连不上") || error.contains("超时") || error.contains("断开"))
@@ -2214,7 +2261,8 @@ class HistoryActivity : Activity() {
             // 拒收类（会话不归手机管、配对失效）重发无用：直接说，不给会失败的重试
             error != null && (error.contains("不能从手机发") || error.contains("没认出")) ->
                 showRetry(error, null)
-            error == null && finalText.isNotBlank() -> PetHistory.append(this, PetHistory.ROLE_PET, finalText)
+            error == null && finalText.isNotBlank() ->
+                PetHistory.append(this, PetHistory.ROLE_PET, finalText, emptyList(), 0L, sentSid)
             // 一轮走完了却一个字都没有：不能就这么静默收工，用户只会以为 App 坏了
             // 断网/开流失败走完一轮、宿主其实一个字都没收到：直接落盘补发，别再让人手动重试
             !userStopped && error?.contains("404") != true && error?.contains("会话已失效") != true &&
@@ -3075,7 +3123,7 @@ class HistoryActivity : Activity() {
                     }
                 }
                 list.sortByDescending { it.at }
-                val ok = res != null && res.json?.optBoolean("ok", true) != false
+                val ok = res != null && res.ok && res.json != null && res.json.optBoolean("ok", true)
                 return list to ok
             }
             var (all, ok) = fetch(wantProj)
@@ -3158,6 +3206,8 @@ class HistoryActivity : Activity() {
      * 项目里的老会话全被截掉，手机上就变成「这个项目只有一只对话」。
      */
     private var liveProjectId = ""
+    /** liveProjectId 是按哪只会话查出来的：换会话要重查，不能沿用上一只的。 */
+    private var liveProjectIdSession = ""
 
     private fun onPickerPick(pos: Int) {
         val row = pickerRows.getOrNull(pos) ?: return
@@ -3210,9 +3260,15 @@ class HistoryActivity : Activity() {
         closePicker()
         // 顶上两行是一对：这只属于哪个项目，项目名就跟着换过去，不等宿主回来才对
         // （否则从别的项目点进来，上面还写着上一个项目，下面就摆着这只的对话）。
-        val projTitle = projects.firstOrNull { it.id == pickerProjectId }?.title.orEmpty()
+        // 这一只自己的项目排第一：picker 里的项目 id 可能是上一趟留下的，不能压过会话行自带的归属
+        val projTitle = projects.firstOrNull { it.id == s.proj }?.title.orEmpty()
+            .ifBlank { projects.firstOrNull { it.id == pickerProjectId }?.title.orEmpty() }
             .ifBlank { pickerProject }
-            .ifBlank { projects.firstOrNull { it.id == s.proj }?.title.orEmpty() }
+        if (s.proj.isNotBlank()) {
+            liveProjectId = s.proj
+            liveProjectIdSession = s.id
+            pickerProjectId = s.proj
+        }
         if (projTitle.isNotBlank() && projTitle != liveProjectTitle) {
             liveProjectTitle = projTitle
             PetSettings.savePinnedTitle(this, projTitle)
@@ -3221,6 +3277,7 @@ class HistoryActivity : Activity() {
         // 都发不出去（提示永远是「上一轮还没结束」），跑着的那轮还会往新会话里写状态。
         turn?.cancel()
         turn = null
+        turnSession = ""
         turnToken = ++turnSeq
         ui.removeCallbacks(ticker)
         ui.removeCallbacks(hostWatch)
@@ -3267,6 +3324,8 @@ class HistoryActivity : Activity() {
             try { client.bind(s.id) } catch (_: Exception) {
             }
             runOnUiThread {
+                // bind 期间换了会话：旧回调不能再改指向、不能再重画
+                if (PetSettings.chatSession(this) != s.id) return@runOnUiThread
                 PetSettings.saveChatSession(this, s.id)
                 liveSessionTitle = s.title
                 refreshHeader()

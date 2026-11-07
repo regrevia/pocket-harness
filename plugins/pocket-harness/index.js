@@ -6442,6 +6442,13 @@ export function apply(ctx, config) {
           })
           if (!payload) return sendJson(res, 404, { ok: false, error: '会话不存在' })
           const sid = url.searchParams.get('id') ?? ''
+          // App 进老会话（掉出最近列表）时靠这个字段对齐页头：项目归属只有宿主算得准
+          if (payload.session && !payload.session.projectId) {
+            const byPath = new Map(
+              workspaceRows(ctx).filter((w) => w.path).map((w) => [String(w.path).replace(/\/+$/, ''), w.id]),
+            )
+            payload.session.projectId = projectIdOfPath(byPath, String(payload.session.cwd ?? ''))
+          }
           return sendJson(res, 200, {
             ...payload,
             goal: goalsOfSession(sid).goals[0] ?? null,

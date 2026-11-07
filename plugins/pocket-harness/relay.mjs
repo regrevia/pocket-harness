@@ -57,7 +57,12 @@ export function setRelayConfig(patch = {}) {
 }
 
 export function relayBase(cfg = getRelayConfig()) {
-  if (cfg.publicBase) return cfg.publicBase
+  const raw = String(cfg.publicBase ?? '').trim().replace(/\/+$/, '')
+  if (raw) {
+    // 只认「…/pet-voice」收尾的地址：少了这一段，配对链接和二维码都指向不存在的路径
+    if (/^https?:\/\/[^/]+\/(?:r\/[^/]+\/)?pet-voice$/.test(raw)) return `${raw}/`
+    state.lastError = `publicBase 不合规（要 …/pet-voice）：${raw}`
+  }
   if (!cfg.slug) return ''
   return DEFAULT_BASE.replace('%s', encodeURIComponent(cfg.slug))
 }
@@ -126,7 +131,8 @@ function allowed(path) {
 }
 
 export function startRelay({ port } = {}) {
-  stopRelay()
+  // 保留 tries：退避要真的往上爬（否则地址写错就永远 2 s 一次重连）
+  stopRelay({ keepConfig: true })
   state.localPort = Number(port) || state.localPort
   const cfg = getRelayConfig()
   if (!cfg.enabled || !cfg.slug || !cfg.secret || !state.localPort) return relayState()

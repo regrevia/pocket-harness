@@ -191,7 +191,7 @@ BASE=https://<你的隧道域名>
 curl -s -o /dev/null -w '%{http_code}\n' "$BASE/pet-voice/"        # 401（没带 key，正常）
 curl -s "$BASE/pet-voice/api/state"                                # 401 JSON：鉴权正常工作
 # 带 key 验证（key 就是 ~/.dsh/pet-voice/token，别外传）
-curl -s "$BASE/pet-voice/api/state?k=$(cat ~/.dsh/pet-voice/token)" | head -c 200
+curl -s -H "Authorization: Bearer $(cat ~/.dsh/pet-voice/token)" "$BASE/pet-voice/api/state" | head -c 200
 ```
 
 ### 常见失败
@@ -270,7 +270,7 @@ BASE=https://PET_ORIGIN
 curl -sI "$BASE/pet-voice/" | head -1                 # 401 或 200
 curl -s "$BASE/pet-voice/api/state" | head -c 120     # 401 JSON
 # 关键：SSE 没被缓冲（应该立刻吐帧，而不是攒 10 秒）
-curl -sN --max-time 5 "$BASE/pet-voice/api/stream?k=$(cat ~/.dsh/pet-voice/token)" | head -3
+curl -sN --max-time 5 -H "Authorization: Bearer $(cat ~/.dsh/pet-voice/token)" "$BASE/pet-voice/api/stream" | head -3
 ```
 
 ### 常见失败

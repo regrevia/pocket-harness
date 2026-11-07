@@ -190,16 +190,22 @@ class PetTurn(
         // 预检一次都没通：链路基本是断的，开流只会干等一个读超时（真机 30s「处理中」发呆）。
         // 直接走轮询的一次性探测，失败就落盘排队，人很快能看见「已排队，联网后自动发出」。
         val linkSuspect = pre?.ok != true
+        // 中继把 SSE 当整段 body 等，永远等不到结尾：中转下直接轮询，别在「处理中」干等 30 s
+        val relayed = client.viaRelay()
         if (linkSuspect) {
             latency.mark("skipStream", "预检未通，直接轮询")
             dbg("linkSuspect=true 跳开流")
         }
+        if (relayed) {
+            latency.mark("skipStream", "中转不支持流式，直接轮询")
+            dbg("relayed=true 跳开流")
+        }
         try {
-            if (linkSuspect) throw IllegalStateException("preflight failed")
+            if (linkSuspect || relayed) throw IllegalStateException("stream skipped")
             // 钉了会话就订阅那只：订阅默认落点会收不到别的会话的增量，只能干等
             sse = client.openStream(streamSession, latency)
         } catch (e: Exception) {
-            post { cb.onStatus("SSE 不可用，改用轮询") }
+            if (!relayed) post { cb.onStatus("SSE 不可用，改用轮询") }
         }
         if (sse != null) {
             stream = sse
