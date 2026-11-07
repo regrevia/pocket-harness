@@ -5,10 +5,15 @@
  * 同时让像素鲸鱼娘进入 listening/thinking/talking 姿态。
  */
 
-import { createPet } from '/pet-voice/assets/pet.js'
+// 经中转时页面挂在 /r/<slug>/pet-voice/：前缀从地址里取，别写死成根路径
+const ROOT = (() => {
+  const hit = /^(.*?\/pet-voice\/)/.exec(`${location.pathname}/`)
+  return hit ? hit[1] : '/pet-voice/'
+})()
 
-const API = '/pet-voice/api'
-const ASSET = '/pet-voice/assets'
+const API = `${ROOT}api`
+const ASSET = `${ROOT}assets`
+const { createPet } = await import(`${ASSET}/pet.js`)
 const $ = (id) => document.getElementById(id)
 
 const S = {
@@ -1266,7 +1271,7 @@ async function refreshPairAddress() {
   } catch {
     /* 取不到就用兜底地址 */
   }
-  const base = info?.publicBase || `${location.origin}/pet-voice/`
+  const base = info?.publicBase || `${location.origin}${ROOT}`
   if (urlBox) urlBox.textContent = base
   if (note) {
     const source = info?.source ?? 'local'

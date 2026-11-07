@@ -75,6 +75,9 @@ export function relayState() {
     slug: cfg.slug,
     hasSecret: Boolean(cfg.secret),
     base: relayBase(cfg),
+    // 面板要能看见并改这两条：写死成我们的域名，换台服务器就永远连不上
+    wsUrl: cfg.wsUrl || DEFAULT_WS,
+    publicBase: cfg.publicBase,
     connected: state.connected,
     since: state.since || null,
     lastError: state.lastError,

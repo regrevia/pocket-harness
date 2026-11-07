@@ -5498,7 +5498,7 @@ export function apply(ctx, config) {
     if (queryToken && safeEqual(queryToken, token)) {
       const secure = isTls(req) ? '; Secure' : ''
       if (!writeHead(res, 303, {
-        location: `${BASE}/`,
+        location: './',
         'set-cookie': `${cookieName(token)}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000${secure}`,
         'cache-control': 'no-store',
       })) return

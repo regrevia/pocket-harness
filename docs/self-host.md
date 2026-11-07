@@ -197,6 +197,8 @@ curl -s -H "Authorization: Bearer $(cat ~/.dsh/pet-voice/token)" "$BASE/pet-voic
 ### 常见失败
 - **页面能开但语音不回复、消息要等一大段才出**：隧道把 SSE 缓冲了。插件已经内置长轮询兜底（`/api/poll`），手机上会自动退化，不需要你处理；仍想修可换方案 B。
 - **扫码后 401 / 一直转圈**：`?k=` 没带上（手输地址时容易丢）。重新扫码，或手动补 `?k=<token>`。
+- **`curl ".../pet-voice/api/state?k=<token>"` 还是 401**：`?k=` 只用来给页面换 cookie（换完 303 到干净地址），
+  接口一律 `Authorization: Bearer <token>`；手机上 cookie 由 App 自己带。
 - **域名过期**：cloudflared 快速隧道重启即换域名，回面板重新填一次。
 
 ## 方案 B：自建域名 + 反向代理（长期用）

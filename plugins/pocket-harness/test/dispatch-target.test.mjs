@@ -80,15 +80,15 @@ test('②b 宿主三层都不认这个 id → 提前 404，连 prompt 都不调'
   assert.equal(calls.prompt.length, 0, '不存在的会话不该真的派出去')
 })
 
-test('① list() 漏掉该会话，但 prompt 成功 → 200 且 usedSessionId 就是它', async () => {
+test('① 显式钉的会话三层都不认得 → 404，绝不派发给别的会话', async () => {
+  // 三层是 list()、controller.get()、磁盘投影。全都不认就等于这只会话已经不在了：
+  // 派出去只会落到别的会话里（用户看到的就是「串记录」），所以先在门口拦掉。
   writePet({ workspaceId: 'ef76a38a-8d4f-40e0-8e7c-f05734c1178a', cwd: PET_PATH, sessionId: PINNED })
   const { ctx, deps, calls } = host({ rows: [], prompt: async () => ({ ok: true }) })
   const result = await D.dispatchToSession(ctx, { preset: '' }, { text: '回复两个字：收到', sessionId: PINNED, mode: 'queue' }, fakeReq, deps)
-  assert.equal(result.status, 200)
-  assert.equal(result.body.sessionId, PINNED)
-  assert.equal(result.body.usedSessionId, PINNED)
-  assert.equal(calls.prompt[0].sessionId, PINNED)
-  assert.equal(calls.create.length, 0, '显式钉了会话就不该另建')
+  assert.equal(result.status, 404)
+  assert.match(result.body.error, /会话不存在/)
+  assert.equal(calls.prompt.length, 0)
   assert.notEqual(result.body.usedSessionId, ACTIVE)
 })
 
@@ -112,13 +112,14 @@ test('③b 专属会话建不出来 → 明确报错，不用活动会话兜底'
   assert.equal(calls.prompt.length, 0)
 })
 
-test('专属会话被 list() 漏掉时沿用绑定，不重建', async () => {
+test('专属会话真的不在了 → 重建，不沿用死的绑定', async () => {
   writePet({ workspaceId: 'ef76a38a-8d4f-40e0-8e7c-f05734c1178a', cwd: PET_PATH, sessionId: PINNED })
   const { ctx, deps, calls } = host({ rows: [], prompt: async () => ({ ok: true }) })
   const result = await D.dispatchToSession(ctx, { preset: '' }, { text: '收到' }, fakeReq, deps)
   assert.equal(result.status, 200)
-  assert.equal(result.body.usedSessionId, PINNED)
-  assert.equal(calls.create.length, 0)
+  assert.equal(result.body.usedSessionId, 'session-created-1')
+  assert.equal(calls.create.length, 1)
+  assert.notEqual(result.body.usedSessionId, ACTIVE)
 })
 
 test('③ 电脑那轮在跑 → 不取消它，手机这句排队（回执带 queued）', async () => {

@@ -308,7 +308,7 @@ window.__ModuleLoader__.load({
       const [pubBusy, setPubBusy] = React.useState(false)
       const [pubError, setPubError] = React.useState('')
       const [relay, setRelay] = React.useState(null)
-      const [relayDraft, setRelayDraft] = React.useState({ slug: '', secret: '' })
+      const [relayDraft, setRelayDraft] = React.useState({ slug: '', secret: '', wsUrl: '', publicBase: '' })
       const [relayBusy, setRelayBusy] = React.useState(false)
       const [relayError, setRelayError] = React.useState('')
 
@@ -586,7 +586,12 @@ window.__ModuleLoader__.load({
         try {
           const data = await request('/relay', patch)
           setRelay(data)
-          setRelayDraft({ slug: String(data?.slug ?? ''), secret: '' })
+          setRelayDraft({
+            slug: String(data?.slug ?? ''),
+            secret: '',
+            wsUrl: String(data?.wsUrl ?? ''),
+            publicBase: String(data?.publicBase ?? ''),
+          })
           setRelayError('')
           await load()
           return data
@@ -600,8 +605,13 @@ window.__ModuleLoader__.load({
         const slug = String(relayDraft.slug || '').trim().toLowerCase()
         if (!/^[a-z0-9][a-z0-9-]{1,31}$/.test(slug)) return setRelayError('地址用 2–32 位小写字母、数字或 -')
         const secret = String(relayDraft.secret || '').trim()
+        const wsUrl = String(relayDraft.wsUrl || '').trim()
+        if (wsUrl && !/^wss?:\/\/[^\s]+$/i.test(wsUrl)) return setRelayError('连接地址要 ws:// 或 wss://')
+        const publicBase = String(relayDraft.publicBase || '').trim()
         setRelayBusy(true)
-        await postRelay(secret ? { enabled: true, slug, secret } : { enabled: true, slug })
+        await postRelay(
+          secret ? { enabled: true, slug, secret, wsUrl, publicBase } : { enabled: true, slug, wsUrl, publicBase },
+        )
         setRelayBusy(false)
       }
 
@@ -656,6 +666,30 @@ window.__ModuleLoader__.load({
                   onChange: relayField('secret'),
                   onCommit: saveRelay,
                   placeholder: relay?.hasSecret ? '已保存，要换才重填' : '中转站给你的密钥',
+                  width: '100%',
+                }),
+              ),
+              h(
+                'div',
+                { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                h('span', { style: S.label }, '连接地址'),
+                h(Input, {
+                  value: relayDraft.wsUrl ?? '',
+                  onChange: relayField('wsUrl'),
+                  onCommit: saveRelay,
+                  placeholder: 'wss://你的中转站/relay/ws',
+                  width: '100%',
+                }),
+              ),
+              h(
+                'div',
+                { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                h('span', { style: S.label }, '配对地址'),
+                h(Input, {
+                  value: relayDraft.publicBase ?? '',
+                  onChange: relayField('publicBase'),
+                  onCommit: saveRelay,
+                  placeholder: 'https://你的中转站/pet-voice/',
                   width: '100%',
                 }),
               ),

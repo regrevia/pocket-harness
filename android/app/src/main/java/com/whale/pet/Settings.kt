@@ -274,13 +274,8 @@ object PetSettings {
         }
         val token = uri.getQueryParameter("k") ?: uri.getQueryParameter("token") ?: return null
         if (token.isBlank()) return null
-        var base = normalizeBase(raw)
-        if (base.isEmpty() && (uri.scheme ?: "").lowercase() == "http") {
-            // 自建服务器没备案就签发不了证书，面板给的配对链接只能是 http://公网IP。
-            // 扫码/粘贴这一下就是用户亲手确认这个地址，记进白名单再解析一次。
-            rememberPlaintext(uri.authority.orEmpty())
-            base = normalizeBase(raw)
-        }
+        // 公网明文不给过：token 会一直在链路上跑，只放行本机与私网（normalizeBase 里判过）。
+        val base = normalizeBase(raw)
         if (base.isEmpty()) return null
         return base to token.trim()
     }

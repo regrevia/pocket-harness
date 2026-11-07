@@ -131,6 +131,11 @@ async function handleRelayRequest(req, res, slug, rest) {
     return sendJSON(res, 503, { ok: false, error: 'owner-offline', slug })
   }
 
+  // 中转是一问一答的单帧模型：SSE 只能憋到超时再 502，不如当场说清楚，省得对面白等 30s。
+  if (String(req.headers.accept ?? '').includes('text/event-stream')) {
+    return sendJSON(res, 409, { ok: false, error: 'stream-unsupported', hint: '请用轮询' })
+  }
+
   let bodyBuf = Buffer.alloc(0)
   try { bodyBuf = await readBody(req) } catch { return sendJSON(res, 413, { ok: false, error: 'too-large' }) }
 
@@ -183,7 +188,7 @@ const server = createServer(async (req, res) => {
     return sendJSON(res, 200, {
       ok: true,
       tenants: Object.keys(tenants).length,
-      online: [...online.keys()],
+      online: online.size,
       pending: pending.size,
       uptime: Math.round(process.uptime()),
     })
