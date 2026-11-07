@@ -2215,10 +2215,57 @@ function goalsOfSession(sessionId) {
         revision: Number(goal.revision ?? 0) || 0,
         roundsStarted: Number(meta.goal?.current?.roundsStarted ?? 0) || 0,
         maxGoalRounds: Number(goal.maxGoalRounds ?? 0) || 0,
-        updatedAt: toMs(meta.goal?.updatedAt) || meta.updatedAt || 0,
+        updatedAt: toMs(meta.goal?.current?.updatedAt) || meta.updatedAt || 0,
       },
     ],
   }
+}
+
+/**
+ * 活的 goal：投影缓存只是镜像，真正的当前值在宿主 `goals` 服务上。
+ * 桌面端清掉目标后缓存可能还留着旧行，只信缓存会让手机一直顶着早就没有的目标。
+ * 返回：对象 = 有；null = 确实清空；undefined = 问不到（保持原值，绝不据此清空）。
+ */
+function liveGoalOf(ctx, sessionId) {
+  const id = String(sessionId ?? '').trim()
+  if (!id) return undefined
+  // 只认已经在跑的 agent：为了看一眼目标把冷会话 resume 起来，代价太大，还可能改变宿主状态
+  let agent
+  try {
+    agent = ctx.agents?.get?.(id)
+  } catch {
+    return undefined
+  }
+  if (!agent) return undefined
+  const goals = agent.ctx?.get?.('goals') ?? ctx.get?.('goals')
+  if (typeof goals?.get !== 'function') return undefined
+  let view
+  try {
+    view = goals.get(agent)
+  } catch {
+    return undefined
+  }
+  if (view === undefined) return null
+  return {
+    id: String(view.id ?? ''),
+    objective: String(view.objective ?? ''),
+    status: String(view.phase ?? 'active'),
+    revision: Number(view.revision ?? 0) || 0,
+    roundsStarted: Number(view.roundsStarted ?? 0) || 0,
+    maxGoalRounds: Number(view.maxGoalRounds ?? 0) || 0,
+    updatedAt: toMs(view.updatedAt) || 0,
+  }
+}
+
+/**
+ * 会话的当前目标：活的说得算，问不到才退回缓存里的那份。
+ * 只在缓存声称有目标时才去问活的，免得给列表里每个冷会话都拉一次 resume。
+ */
+function goalOfSession(ctx, sessionId) {
+  const cached = goalsOfSession(sessionId).goals[0] ?? null
+  if (!cached) return cached
+  const live = liveGoalOf(ctx, sessionId)
+  return live === undefined ? cached : live
 }
 
 /**
@@ -6451,7 +6498,7 @@ export function apply(ctx, config) {
           }
           return sendJson(res, 200, {
             ...payload,
-            goal: goalsOfSession(sid).goals[0] ?? null,
+            goal: goalOfSession(ctx, sid),
             inbox: inboxOfSession(sid),
             asks: asksOfSession(sid),
           })
@@ -6501,12 +6548,18 @@ export function apply(ctx, config) {
       }
 
       if (route === 'goals' && method === 'GET') {
+        const gid = url.searchParams.get('sessionId') ?? ''
         try {
-          return sendJson(res, 200, goalsOfSession(url.searchParams.get('sessionId') ?? ''))
+          const goal = goalOfSession(ctx, gid)
+          return sendJson(res, 200, { ok: true, goals: goal ? [goal] : [] })
         } catch (error) {
           LOG('目标读取失败：', error?.message ?? error)
-          // 目标只是锦上添花：读不到就空数组，别让 App 因此报错。
-          return sendJson(res, 200, { ok: true, goals: [] })
+          // 读不到就说不知道，别冒充「没有目标」：退回缓存那份，缓存也没有才算空。
+          try {
+            return sendJson(res, 200, goalsOfSession(gid))
+          } catch {
+            return sendJson(res, 200, { ok: true, goals: [] })
+          }
         }
       }
 

@@ -124,8 +124,13 @@ class HistoryActivity : Activity() {
     /** 电脑上在等回答的问题：有就摆在输入框上方。 */
     private lateinit var asksBar: LinearLayout
     private lateinit var asksScroll: ScrollView
-    /** 队列里那几句：id 是宿主给的，撤掉/调顺序都按它认。 */
-    private data class Queued(val id: String, val text: String)
+    /** 队列里那几句：id 是宿主给的，撤掉/调顺序都按它认；kind 分「下一轮的用户话」和「插话」。 */
+    private data class Queued(val id: String, val text: String, val kind: String = "")
+    /**
+     * 刚从这里发出去的几句：宿主把手机这句排进「下一轮」时，队列里会出现跟气泡一模一样的一条。
+     * 那条不该再当队列摆出来——更不能点「直接发送」再发一遍。
+     */
+    private val recentSent = java.util.ArrayDeque<Pair<String, Long>>()
     @Volatile private var goalId = ""
     @Volatile private var goalObjective = ""
     @Volatile private var goalRevision = 0
@@ -751,9 +756,16 @@ class HistoryActivity : Activity() {
             val row = inbox?.optJSONObject(i) ?: return@mapNotNull null
             val text = row.optString("text").trim().replace('\n', ' ')
             val id = row.optString("id").trim()
-            if (text.isBlank() || id.isBlank()) null else Queued(id, text)
+            if (text.isBlank() || id.isBlank()) null else Queued(id, text, row.optString("kind"))
         }
         renderQueue(queued)
+    }
+
+    /** 这句是不是刚从这里发出去的（宿主已经收下，队列里那条只是回声）。 */
+    private fun recentlySent(text: String): Boolean {
+        val now = System.currentTimeMillis()
+        while (recentSent.isNotEmpty() && now - recentSent.first.second > 10 * 60_000L) recentSent.removeFirst()
+        return recentSent.any { it.first == text }
     }
 
     /**
@@ -864,19 +876,23 @@ class HistoryActivity : Activity() {
 
     /** 队列：一句一行，右侧点掉；长按调顺序或撤掉。 */
     private fun renderQueue(items: List<Queued>) {
+        // 手机自己发的那句已经出门了：宿主把它排进下一轮只是回声，别在队列里再摆一遍
+        val shown = items.filterNot { it.kind == "next-turn" && recentlySent(it.text) }
         queueBar.removeAllViews()
-        if (items.isEmpty()) {
+        if (shown.isEmpty()) {
             queueBar.visibility = View.GONE
             return
         }
         queueBar.visibility = View.VISIBLE
-        for (item in items) {
+        for (item in shown) {
+            // 「下一轮的用户话」宿主自己会发出去；再点一次就是发两遍，所以这种只留「撤掉」
+            val nextTurn = item.kind == "next-turn"
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
             }
             row.addView(TextView(this).apply {
-                text = "待输入 · ${item.text}"
+                text = if (nextTurn) "待发送 · ${item.text}" else "待输入 · ${item.text}"
                 setTextColor(getColor(R.color.pet_hint))
                 textSize = 12f
                 maxLines = 1
@@ -884,7 +900,7 @@ class HistoryActivity : Activity() {
                 setPadding(0, dp(4), 0, dp(4))
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
-            row.addView(TextView(this).apply {
+            if (!nextTurn) row.addView(TextView(this).apply {
                 text = "直接发送"
                 setTextColor(getColor(R.color.pet_accent))
                 textSize = 12f
@@ -899,7 +915,7 @@ class HistoryActivity : Activity() {
                 setOnClickListener { queueAct("remove", item.id) }
             })
             // 点一行 = 立刻把这一句插进正在跑的这一轮（就是引导）：桌面端也是点排队的那句发出去
-            row.setOnClickListener { steerQueued(item) }
+            if (!nextTurn) row.setOnClickListener { steerQueued(item) }
             row.setOnLongClickListener { showQueueMenu(item); true }
             queueBar.addView(row)
         }
@@ -1229,11 +1245,17 @@ class HistoryActivity : Activity() {
         val sid = PetSettings.chatSession(this)
         if (sid.isBlank()) return
         queueBar.visibility = View.GONE
-        steer(item.text)
+        // 先确认这句还在宿主队列里，再当引导插进去；撤不掉说明宿主已经把它发出去了，再发就是两遍
         Thread({
-            try {
-                PetClient { PetSettings.load(this) }.inboxAction(sid, "remove", item.id)
-            } catch (_: Exception) {
+            val ok = try {
+                PetClient { PetSettings.load(this) }.inboxAction(sid, "remove", item.id)?.json?.optBoolean("ok") == true
+            } catch (_: Exception) { false }
+            ui.post {
+                if (isFinishing || isDestroyed) return@post
+                if (ok) steer(item.text) else {
+                    toast("这句已经发出去了")
+                    syncSession()
+                }
             }
         }, "pet-queue-steer").apply { isDaemon = true }.start()
     }
@@ -1269,10 +1291,16 @@ class HistoryActivity : Activity() {
                 if (turns == null || !turns.has(key)) break
                 runCatching { Thread.sleep(120L) }
             }
-            runCatching { client.inboxAction(sid, "remove", item.id) }
+            val removed = runCatching {
+                client.inboxAction(sid, "remove", item.id)?.json?.optBoolean("ok") == true
+            }.getOrDefault(false)
             ui.post {
                 if (isFinishing || isDestroyed) return@post
-                send(item.text, shownAs = item.text)
+                // 撤不掉 = 宿主已经把这句发出去了，此时不能再发一遍
+                if (removed) send(item.text, shownAs = item.text) else {
+                    toast("这句已经发出去了")
+                    syncSession()
+                }
             }
         }, "pet-queue-now").apply { isDaemon = true }.start()
     }
@@ -2126,6 +2154,11 @@ class HistoryActivity : Activity() {
         }
         lastSent = text
         lastAttachment = attachment.ifBlank { media.firstOrNull()?.host.orEmpty() }
+        // 记一下这句：宿主把它排进下一轮时队列里会出现同一条回声，靠这个认出来不重复发
+        if (text.isNotBlank()) {
+            recentSent.addLast(text to System.currentTimeMillis())
+            while (recentSent.size > 8) recentSent.removeFirst()
+        }
         adapter.error = ""
         adapter.errorAction = null
         adapter.live = ""
@@ -3243,9 +3276,8 @@ class HistoryActivity : Activity() {
         // 顶上两行是一对：这只属于哪个项目，项目名就跟着换过去，不等宿主回来才对
         // （否则从别的项目点进来，上面还写着上一个项目，下面就摆着这只的对话）。
         // 这一只自己的项目排第一：picker 里的项目 id 可能是上一趟留下的，不能压过会话行自带的归属
+        // 只认这一只自己的项目：picker 里选过的项目是上一趟的事，不能拿它给这只顶名字
         val projTitle = projects.firstOrNull { it.id == s.proj }?.title.orEmpty()
-            .ifBlank { projects.firstOrNull { it.id == pickerProjectId }?.title.orEmpty() }
-            .ifBlank { pickerProject }
         if (s.proj.isNotBlank()) {
             liveProjectId = s.proj
             liveProjectIdSession = s.id
