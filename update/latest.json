@@ -1,14 +1,14 @@
 {
   "ok": true,
-  "versionCode": 225,
-  "versionName": "0.9.155",
-  "size": 30094950,
-  "sha256": "b2cd3c495996b2a55ba29fb63a34cd06fab3b42515f27476eaaf2a571fc9f851",
+  "versionCode": 226,
+  "versionName": "0.9.156",
+  "size": 30095230,
+  "sha256": "bb34bfc94797db2f848d0fa7cc2fcf7ab8a0969a1d05995f57320b74acf2ec46",
   "file": "app-release.apk",
-  "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.155/app-release.apk",
-  "notes": "目标以桌面端为准；排队的话不再重复发送",
+  "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.156/app-release.apk",
+  "notes": "排在电脑那轮后面的消息只提示排队，不再催重发",
   "minPlugin": "0.3.3",
-  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.155/app-release.apk",
-  "publishedAt": "2026-11-07T08:54:14.285Z",
-  "promotedAt": "2026-11-07T08:54:18.304Z"
+  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.156/app-release.apk",
+  "publishedAt": "2026-11-07T09:38:25.934Z",
+  "promotedAt": "2026-11-07T09:38:29.674Z"
 }
