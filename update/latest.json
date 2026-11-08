@@ -1,14 +1,14 @@
 {
   "ok": true,
-  "versionCode": 226,
-  "versionName": "0.9.156",
-  "size": 30095230,
-  "sha256": "bb34bfc94797db2f848d0fa7cc2fcf7ab8a0969a1d05995f57320b74acf2ec46",
+  "versionCode": 229,
+  "versionName": "0.9.159",
+  "size": 30095946,
+  "sha256": "34d7a3aa876a3a3a6bf6bee28eb39a283d3af89d57e274063a2969841e85d260",
   "file": "app-release.apk",
-  "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.156/app-release.apk",
-  "notes": "排在电脑那轮后面的消息只提示排队，不再催重发",
-  "minPlugin": "0.3.3",
-  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.156/app-release.apk",
-  "publishedAt": "2026-11-07T09:38:25.934Z",
-  "promotedAt": "2026-11-07T09:38:29.674Z"
+  "url": "https://cnb.cool/2022090087/dsh-pet-voice/-/releases/download/v0.9.159/app-release.apk",
+  "notes": "电脑上的新消息、目标、排队在一两秒内就出现在对话页（不再等约一分钟）",
+  "minPlugin": "0.3.5",
+  "fallbackUrl": "https://github.com/regrevia/pocket-harness/releases/download/v0.9.159/app-release.apk",
+  "publishedAt": "2026-11-08T17:02:13.958Z",
+  "promotedAt": "2026-11-08T17:02:17.550Z"
 }
