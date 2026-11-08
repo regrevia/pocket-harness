@@ -256,6 +256,22 @@ class PetClient(private val config: () -> PetConfig) {
         45_000,
     ).also { r -> r.json?.optInt("cursor", -1)?.let { if (it >= 0) NetLog.seq(it) } }
 
+    /**
+     * 「电脑那边变了没有」的长轮询：服务端按指纹比对，变了立刻回，没变最多挂 [waitMs]。
+     * 读超时比 wait 多留一截，往返到中转那一层（30 s 上限）也没问题。
+     */
+    fun watch(sessionId: String, since: String, waitMs: Int): Result = request(
+        "watch",
+        mapOf(
+            "sessionId" to sessionId,
+            "since" to since,
+            "wait" to waitMs.toString(),
+        ),
+        "GET",
+        null,
+        25_000,
+    )
+
     /** SSE：返回体自己按行解析；调用方负责 close。传 latency 时打 connect/firstByte/firstData 三个点。 */
     fun openStream(sessionId: String, latency: TurnLatency? = null): Stream {
         val query = if (sessionId.isBlank()) emptyMap() else mapOf("sessionId" to sessionId)

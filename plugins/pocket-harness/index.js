@@ -2298,6 +2298,40 @@ function inboxOfSession(sessionId) {
   return out
 }
 
+
+/**
+ * 「电脑那边变了没有」的便宜指纹：只 stat 转录文件 + 读投影缓存，
+ * 不解析整页对话。App 在前台挂一只 watch 长轮询，指纹一变就重取一页，
+ * 电脑上刚说的话不必等下一次整页对齐（以前 60 s）才出现。
+ */
+function watchFingerprint(sessionId, liveTurns) {
+  const id = String(sessionId ?? '').trim()
+  const parts = { file: '', title: '', updated: 0, turns: 0, inbox: '', goal: '', asks: 0, running: false }
+  try {
+    const st = statSync(transcriptPathOf(id))
+    parts.file = `${Math.round(st.mtimeMs)}:${st.size}`
+  } catch {
+    // 还没有转录：新会话第一次说话前就是这个状态
+  }
+  // 元信息走投影缓存（按 stat 记忆，几十 KB 一个文件），比现场拼会话列表便宜得多
+  const meta = projectCacheOf(id)
+  parts.title = String(meta.title ?? '')
+  parts.updated = Number(meta.updatedAt ?? 0) || 0
+  parts.turns = Number(meta.turns ?? 0) || 0
+  parts.running = liveTurnRunning(liveTurns, id)
+  try {
+    parts.inbox = inboxOfSession(id).map((item) => `${item.id}:${item.text.length}`).join('|')
+  } catch { /* 投影还没落盘 */ }
+  try {
+    const goal = goalsOfSession(id).goals?.[0] ?? null
+    parts.goal = goal ? `${goal.goalId ?? goal.id ?? ''}:${goal.state ?? ''}:${goal.updatedAt ?? ''}` : ''
+  } catch { /* 同上 */ }
+  try {
+    parts.asks = asksOfSession(id).length
+  } catch { /* 同上 */ }
+  return { fp: JSON.stringify(parts), ...parts }
+}
+
 /**
  * 等主人回答的提问（桌面端「待确认提问」那一块）。
  * 宿主把还没答的提问放进投影缓存的 `userQuestions` 行：`open` 还卡在前台等，
@@ -6720,6 +6754,36 @@ export function apply(ctx, config) {
           // 只有真的把 end 发出去了才算这一轮结束。final 现在是「这一轮的最后一句
           // 话」，不是终止信号（工具任务里它后面还可能有 tool/end 帧）。
           done: batch.some((f) => f.event === 'end'),
+        })
+      }
+
+      if (route === 'watch' && method === 'GET') {
+        // 便宜指纹长轮询：App 在前台挂一条，电脑那边一改（新回复、排队的话、
+        // 目标、待确认提问、标题）就立刻回来，省掉几十秒的整页空窗。
+        // 走中转时一条请求只回一帧，所以这里自己限时：中转 30 s 就 502，
+        // 留足余量给宿主的抖动。
+        const sid = String(url.searchParams.get('sessionId') ?? '').trim()
+        if (!sid) return sendJson(res, 400, { ok: false, error: 'missing sessionId' })
+        const since = String(url.searchParams.get('since') ?? '')
+        const wait = Math.min(Math.max(Number(url.searchParams.get('wait') ?? 15_000) || 0, 0), 18_000)
+        const deadline = Date.now() + wait
+        let snap = watchFingerprint(sid, liveTurns)
+        while (snap.fp === since && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 350))
+          snap = watchFingerprint(sid, liveTurns)
+        }
+        return sendJson(res, 200, {
+          ok: true,
+          sessionId: sid,
+          fp: snap.fp,
+          at: Date.now(),
+          changed: snap.fp !== since,
+          running: snap.running,
+          title: snap.title,
+          turns: snap.turns,
+          inbox: inboxOfSession(sid),
+          goal: goalOfSession(ctx, sid),
+          asks: asksOfSession(sid),
         })
       }
 

@@ -191,6 +191,8 @@ class HistoryActivity : Activity() {
     private var hostLoadFailed = false
     private var hostSid = ""
     private var lastHostPageAt = 0L
+    @Volatile private var liveWatchOn = false
+    @Volatile private var liveFp = ""
     /** 列表自己的滚动状态：只有手指拖/甩到顶才自动补页。 */
     private var scrollState = android.widget.AbsListView.OnScrollListener.SCROLL_STATE_IDLE
     /** 加页时别贴底：翻上去看的是旧的，回到底部会把人踢回去。 */
@@ -551,6 +553,62 @@ class HistoryActivity : Activity() {
         // 页面开着的时候核一下这只还在不在、名字对不对（20 秒一次；有回合在跑就 3 秒）
         ui.removeCallbacks(hostWatch)
         ui.postDelayed(hostWatch, if (hostBusy || localBusy) 3_000L else HOST_WATCH_MS)
+        startLiveWatch()
+    }
+
+    /**
+     * 电脑那边的变化不再靠「每 60 秒对齐一次」：前台挂一条便宜的长轮询，指纹一变
+     * 就把这一页、页头、目标和排队重取一遍，手机上看到的就是电脑上刚发生的。
+     * 链路抖了退到 3–15 秒重试，老插件没有这条接口就直接退回原来的对齐方式。
+     */
+    private fun startLiveWatch() {
+        if (liveWatchOn) return
+        liveWatchOn = true
+        Thread({
+            var backoff = 0L
+            while (liveWatchOn) {
+                val sid = PetSettings.chatSession(this)
+                if (sid.isBlank()) {
+                    sleepQuietly(2_000L)
+                    continue
+                }
+                val res = runCatching {
+                    PetClient { PetSettings.load(this) }.watch(sid, liveFp, 15_000)
+                }.getOrNull()
+                if (!liveWatchOn) break
+                if (res?.code == 404) {
+                    // 电脑上的插件还没升级：这条通道不存在，交给原来的定时对齐
+                    liveWatchOn = false
+                    break
+                }
+                val json = res?.json
+                if (json == null || !res.ok) {
+                    sleepQuietly(if (backoff <= 0L) 3_000L else backoff)
+                    backoff = if (backoff <= 0L) 6_000L else minOf(backoff * 2, 15_000L)
+                    continue
+                }
+                backoff = 0L
+                val fp = json.optString("fp")
+                val changed = json.optBoolean("changed") && fp.isNotBlank() && fp != liveFp
+                if (fp.isNotBlank()) liveFp = fp
+                if (!changed) continue
+                ui.post {
+                    if (isFinishing || isDestroyed || !liveWatchOn) return@post
+                    syncSession()
+                    refreshAsks()
+                    // 刚取过就不再打一次：同一次变化别让两路各拉一页
+                    if (System.currentTimeMillis() - lastHostPageAt > 1_500L) loadHostPage(older = false)
+                }
+            }
+        }, "pet-live").start()
+    }
+
+    private fun stopLiveWatch() {
+        liveWatchOn = false
+    }
+
+    private fun sleepQuietly(ms: Long) {
+        runCatching { Thread.sleep(ms) }
     }
 
     @Volatile private var repairing = false
@@ -678,6 +736,7 @@ class HistoryActivity : Activity() {
         super.onPause()
         ui.removeCallbacks(hostWatch)
         ui.removeCallbacks(attachPull)
+        stopLiveWatch()
         // 离开页面就别再录了，免得麦克风一直攥在手里
         micDown = false
         if (recorder?.isRecording == true) runCatching { recorder?.stop() }
