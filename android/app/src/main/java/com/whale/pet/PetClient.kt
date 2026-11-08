@@ -647,7 +647,12 @@ class PetClient(private val config: () -> PetConfig) {
         conn.readTimeout = readTimeoutMs
         conn.instanceFollowRedirects = true
         conn.setRequestProperty("Cookie", cfg.cookieHeader)
-        conn.setRequestProperty("Accept", "application/json, text/event-stream")
+        // 中转是一问一答的单帧模型，见到 `Accept: text/event-stream` 直接回 409：
+        // 以前每条请求都带它，于是取一页历史、发一句话全被判成「不支持」。
+        conn.setRequestProperty(
+            "Accept",
+            if (path == "stream") "text/event-stream" else "application/json",
+        )
         conn.setRequestProperty("User-Agent", "WhalePet/${BuildConfig.VERSION_NAME} (Android ${Build.VERSION.SDK_INT}; ${deviceName()})")
         conn.setRequestProperty("X-Pet-Device", deviceName())
         conn.setRequestProperty("X-Pet-Device-Id", deviceId())

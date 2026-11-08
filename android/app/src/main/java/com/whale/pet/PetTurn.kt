@@ -421,10 +421,14 @@ class PetTurn(
      * 返回 true 表示已经排队（上层文案要改成「已排队」而不是「没发出去」）。
      */
     /** 拒收原因说人话：这几种重发都不会变好。 */
-    private fun rejectedText(code: Int): String = when (code) {
-        409 -> "这个会话不能从手机发"
-        401, 403 -> "电脑那边没认出这台手机"
-        else -> "没发出去，重试"
+    private fun rejectedText(res: PetClient.Result): String {
+        // 中转拒掉 SSE 不是会话的问题，别让这句话看着像「永久不能发」
+        if (res.code == 409 && res.text.contains("stream-unsupported")) return "这句没送到，重试"
+        return when (res.code) {
+            409 -> "这个会话不能从手机发"
+            401, 403 -> "电脑那边没认出这台手机"
+            else -> "没发出去，重试"
+        }
     }
 
     private fun queueIfUndelivered(res: PetClient.Result?): Boolean {
@@ -477,7 +481,7 @@ class PetTurn(
             else {
                 val code = res.code
                 if (code != 408 && code != 429 && code in 400..499) permanent = true
-                postError(rejectedText(code))
+                postError(rejectedText(res))
             }
             return
         }
@@ -537,7 +541,7 @@ class PetTurn(
             else {
                 val code = res.code
                 if (code != 408 && code != 429 && code in 400..499) permanent = true
-                postError(rejectedText(code))
+                postError(rejectedText(res))
             }
             return
         }

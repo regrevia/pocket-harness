@@ -69,11 +69,16 @@ object Outbox {
     }
 
     /** 宿主拒绝的原因说人话；`retry` 决定界面给不给「再发一次」。 */
-    private fun rejectedLine(code: Int): Pair<String, Boolean> = when (code) {
-        401, 403 -> "电脑那边没认出这台手机" to false
-        404 -> "这个会话不在了" to false
-        409 -> "这个会话不能从手机发" to false
-        else -> "这句没送到" to true
+    private fun rejectedLine(res: PetClient.Result?): Pair<String, Boolean> {
+        val code = res?.code ?: 0
+        // 中转拒掉 SSE 回的是 409 stream-unsupported：重发一次（走轮询）就成，不是会话的问题
+        if (code == 409 && res?.text?.contains("stream-unsupported") == true) return "这句没送到" to true
+        return when (code) {
+            401, 403 -> "电脑那边没认出这台手机" to false
+            404 -> "这个会话不在了" to false
+            409 -> "这个会话不能从手机发" to false
+            else -> "这句没送到" to true
+        }
     }
 
     private fun notifyFailed(text: String, reason: String, retry: Boolean) {
@@ -405,7 +410,7 @@ object Outbox {
             remove(ctx, item.requestId)
             NetLog.record("outbox", code, 0, "补发被拒（$code），不再重试 ${item.requestId.take(8)}")
             Log.i("Outbox", "补发被拒 code=$code ${item.requestId.take(8)}")
-            val (line, again) = rejectedLine(code)
+            val (line, again) = rejectedLine(res)
             notifyFailed(item.text, line, again)
             return
         }
